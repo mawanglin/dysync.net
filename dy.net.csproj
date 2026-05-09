@@ -104,12 +104,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Reference Include="dy.sync.lib">
-      <HintPath>lib\dy.sync.lib.dll</HintPath>
-    </Reference>
-  </ItemGroup>
-
-  <ItemGroup>
     <Content Update="appsettings.json">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
