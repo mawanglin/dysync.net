@@ -27,6 +27,10 @@
     <Compile Remove="db\**" />
     <Compile Remove="expand\**" />
     <Compile Remove="logs\**" />
+    <Compile Remove="tests\**" />
+    <Content Remove="tests\**" />
+    <EmbeddedResource Remove="tests\**" />
+    <None Remove="tests\**" />
     <Content Remove="app\**" />
     <Content Remove="db\**" />
     <Content Remove="expand\**" />
@@ -43,8 +47,8 @@
 
 
 	<ItemGroup>
-		<Compile Include="**/*.cs" Exclude="app\**;db\**;expand\**;logs\**;obj\**;bin\**" />
-		<Content Include="**/*.json;**/*.xml;**/*.config" Exclude="app\**;db\**;expand\**;logs\**;obj\**;bin\**" />
+		<Compile Include="**/*.cs" Exclude="app\**;db\**;expand\**;logs\**;tests\**;obj\**;bin\**" />
+		<Content Include="**/*.json;**/*.xml;**/*.config" Exclude="app\**;db\**;expand\**;logs\**;tests\**;obj\**;bin\**" />
 	</ItemGroup>
 
 
