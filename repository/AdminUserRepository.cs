@@ -29,13 +29,13 @@ namespace dy.net.repository
                 var user = await this.GetByIdAsync(loginUser.UserId);
                 if (user != null)
                 {
-                    if (loginUser?.OldPassword?.Md5() != user.Password)
+                    if (!PasswordUtil.Verify(user.Password, loginUser?.OldPassword))
                     {
                         return (-1, "原密码错误");
                     }
                     else
                     {
-                        var newpassword = loginUser.Password.Md5();
+                        var newpassword = PasswordUtil.Hash(loginUser.Password);
                         user.Password = newpassword;
                         user.UserName = loginUser.UserName;
                         var res = await this.UpdateAsync(user);
@@ -100,7 +100,7 @@ namespace dy.net.repository
             {
                 userInfo.Id = IdGener.GetLong().ToString();
                 userInfo.CreateTime = DateTime.Now;
-                userInfo.Password = Md5Util.Md5(userInfo.Password);
+                userInfo.Password = PasswordUtil.Hash(userInfo.Password);
 
                 var res = this.Insert(userInfo);
                 return (res ? 0 : -1, res ? "初始用户成功" : "初始化用户失败");
@@ -109,8 +109,12 @@ namespace dy.net.repository
 
         public bool ResetPwd(string pwd)
         {
-            if (string.IsNullOrWhiteSpace(pwd)) pwd = "douyin2026";
-            var password = Md5Util.Md5(pwd);
+            if (string.IsNullOrWhiteSpace(pwd))
+            {
+                Serilog.Log.Warning("ResetPwd 收到空密码，已拒绝（不再静默重置为已知默认密码）");
+                return false;
+            }
+            var password = PasswordUtil.Hash(pwd);
 
             // 参数化，杜绝 SQL 注入。注意：无 WHERE 为单管理员场景的既有语义，
             // 行范围未改动以避免行为变更；多用户场景需另行加 WHERE。

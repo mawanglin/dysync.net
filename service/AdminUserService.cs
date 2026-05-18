@@ -31,6 +31,11 @@ namespace dy.net.service
             return await _userRepository.UpdateAvatar(avatar);
         }
 
+        public async Task<bool> UpdateUser(AdminUserInfo user)
+        {
+            return await _userRepository.UpdateAsync(user);
+        }
+
         public (int code, string erro) InitUser(string UserName, string Password)
         {
             AdminUserInfo userInfo = new AdminUserInfo
