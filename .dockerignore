@@ -1,0 +1,14 @@
+.git
+.gitignore
+.gitattributes
+**/obj
+**/bin
+app/node_modules
+app/.env
+app/.env.*
+logs
+db
+**/*.user
+**/vite.config.ts.timestamp-*.mjs
+docs
+*.md
