@@ -326,10 +326,7 @@ namespace dy.net.extension
                     ConnectTimeout = TimeSpan.FromSeconds(30), // 核心修复：移除无限超时，避免请求挂起泄漏
                     PooledConnectionLifetime = TimeSpan.FromMinutes(5), // 优化：连接池生命周期，自动释放闲置连接
                     PooledConnectionIdleTimeout = TimeSpan.FromMinutes(2), // 优化：闲置连接超时，减少内存占用
-                    SslOptions = new SslClientAuthenticationOptions
-                    {
-                        RemoteCertificateValidationCallback = (_, __, ___, ____) => true
-                    }
+                    SslOptions = new SslClientAuthenticationOptions()
                 };
                 return handler;
             }
