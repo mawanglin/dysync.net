@@ -2,6 +2,7 @@
 using dy.net.service;
 using dy.net.utils;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.IdentityModel.Tokens;
 //using Microsoft.OpenApi.Models;
@@ -232,6 +233,13 @@ namespace dy.net.extension
                     ValidateLifetime = true,
                     ClockSkew = TimeSpan.FromSeconds(60)
                 };
+            });
+
+            services.AddAuthorization(options =>
+            {
+                options.FallbackPolicy = new AuthorizationPolicyBuilder()
+                    .RequireAuthenticatedUser()
+                    .Build();
             });
         }
 

@@ -58,6 +58,7 @@ namespace dy.net.Controllers
         /// </summary>
         /// <param name="loginUserInfo"></param>
         /// <returns></returns>
+        [AllowAnonymous]
         [HttpPost]
         public async Task<IActionResult> Login(LoginRequest loginUserInfo)
         {
