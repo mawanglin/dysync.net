@@ -432,6 +432,10 @@ namespace dy.net.Controllers
         [HttpGet("getmp3")]
         public async Task<IActionResult> GetMp3([FromQuery] string name)
         {
+            if (string.IsNullOrWhiteSpace(name) || Path.GetFileName(name) != name)
+            {
+                return BadRequest("非法文件名");
+            }
             var path = Path.Combine(AppContext.BaseDirectory, "mp3", name);
             if (!string.IsNullOrWhiteSpace(ServiceExtension.FnDataFolder))
             {
