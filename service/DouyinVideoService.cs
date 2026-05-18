@@ -295,7 +295,14 @@ namespace dy.net.service
                     Serilog.Log.Error(e, "数据库事务执行失败：Ids={0}", string.Join(",", videoIds));
                 });
 
-                // 5. 文件删除（非事务操作，失败不回滚数据库，可根据业务调整）
+                // 事务未成功时，绝不删除文件，避免数据库未变更却物理删除导致永久数据丢失
+                if (!transactionResult)
+                {
+                    Serilog.Log.Error("数据库事务未成功，已跳过文件删除以防数据丢失：Ids={0}", string.Join(",", videoIds));
+                    return false;
+                }
+
+                // 5. 文件删除（仅在事务成功后执行；文件删除本身失败不回滚数据库）
                 // 采用异步文件操作，避免同步IO阻塞线程（需.NET 5+支持）
                 foreach (var video in filePathsToDelete)
                 {
