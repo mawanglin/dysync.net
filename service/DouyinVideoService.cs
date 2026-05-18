@@ -396,7 +396,7 @@ namespace dy.net.service
         {
 
             var date = DateTime.Now.AddDays(-day);
-            var list = await _dyCollectVideoRepository.GetListAsync(x => x.SyncTime > date);
+            var list = await _dyCollectVideoRepository.GetChartProjectionAsync(date);
 
             var resultData = list.GroupBy(x => x.SyncTime.ToString("yyyyMMdd")).Select(g => new VideoChartItemDto
             {
