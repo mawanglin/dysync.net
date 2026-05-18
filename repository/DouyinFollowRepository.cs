@@ -113,15 +113,15 @@ namespace dy.net.repository
 
             try
             {
-                // 2. 开启SqlSugar事务
-                await Db.Ado.BeginTranAsync();
-                // 1. 提取当前批次的SecUid集合（去重）
+                // 1. 提取当前批次的SecUid集合（去重）——在开启事务前判空，避免空批次泄漏未提交事务
                 HashSet<string> currentSecUids = followInfos.Select(x => x.SecUid).ToHashSet();
                 if (!currentSecUids.Any())
                 {
                     Serilog.Log.Debug($"同步关注列表：当前批次无有效数据（{ck.UserName}），直接返回成功");
                     return (0, 0, true);
                 }
+                // 2. 开启SqlSugar事务
+                await Db.Ado.BeginTranAsync();
 
                 // 2. 查询当前批次对应的现有记录（仅查需要对比的，减少数据量）
                 List<DouyinFollowed> existFollows = await Db.Queryable<DouyinFollowed>()
@@ -194,6 +194,7 @@ namespace dy.net.repository
 
                     if (!batchAddSuccess)
                     {
+                        await Db.Ado.RollbackTranAsync();
                         Serilog.Log.Error("同步关注列表失败：新增关注分批插入异常");
                         return (toAddFollows.Count, toUpdateFollows.Count, false);
                     }
@@ -215,6 +216,7 @@ namespace dy.net.repository
 
                     if (!batchUpdateSuccess)
                     {
+                        await Db.Ado.RollbackTranAsync();
                         Serilog.Log.Error( $"[{ck.UserName}]同步关注列表失败");
                         return (toAddFollows.Count, toUpdateFollows.Count, false);
                     }

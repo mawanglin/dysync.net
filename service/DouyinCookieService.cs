@@ -129,9 +129,12 @@ namespace dy.net.service
 
         public async Task<bool> ImportCookies(List<DouyinCookie> cookies)
         {
-            await _cookieRepository.DeleteAsync(x => !string.IsNullOrWhiteSpace(x.Id));
-            await _cookieRepository.InsertRangeAsync(cookies);
-            return true;
+            // 删除+插入须原子化：插入失败不能让 Cookie 全部丢失
+            return await _cookieRepository.UseTranAsync(async () =>
+            {
+                await _cookieRepository.DeleteAsync(x => !string.IsNullOrWhiteSpace(x.Id));
+                await _cookieRepository.InsertRangeAsync(cookies);
+            }, ex => Serilog.Log.Error(ex, "导入 Cookie 事务失败，已回滚"));
         }
 
         /// <summary>
