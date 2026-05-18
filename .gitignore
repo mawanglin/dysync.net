@@ -7,3 +7,19 @@ data1
 /db/*.sqlite
 /Properties/PublishProfiles/fn.pubxml.user
 /Properties/PublishProfiles/*.user
+
+# dev/IDE
+*.user
+.vs/
+.idea/
+
+# vite scratch
+**/vite.config.ts.timestamp-*.mjs
+
+# env files (commit .env.example instead)
+app/.env
+app/.env.*
+!app/.env.example
+
+# stray duplicates
+**/* copy.*
