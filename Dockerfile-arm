@@ -1,9 +1,9 @@
-# Ê¹ÓÃ Ubuntu 20.04 µÄ .NET 6 ÔËÐÐÊ±¾µÏñ
-FROM mcr.microsoft.com/dotnet/aspnet:6.0-focal AS base
+# Ê¹ï¿½ï¿½ Ubuntu 20.04 ï¿½ï¿½ .NET 6 ï¿½ï¿½ï¿½ï¿½Ê±ï¿½ï¿½ï¿½ï¿½
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS base
 WORKDIR /app
 EXPOSE 10101
 
-# °²×° ffmpeg (Ubuntu µÄ universe ²Ö¿â°üº¬ ffmpeg)
+# ï¿½ï¿½×° ffmpeg (Ubuntu ï¿½ï¿½ universe ï¿½Ö¿ï¿½ï¿½ï¿½ï¿½ ffmpeg)
 RUN apt-get update && \
     apt-get install -y --no-install-recommends ffmpeg && \
     rm -rf /var/lib/apt/lists/*

@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
-    <TargetFramework>net6.0</TargetFramework>
+    <TargetFramework>net8.0</TargetFramework>
     <Nullable>disable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
@@ -56,8 +56,8 @@
 
 	<ItemGroup>
 	  <PackageReference Include="ClockSnowFlake" Version="1.1.0" />
-	  <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="6.0.16" />
-	  <PackageReference Include="Microsoft.AspNetCore.SpaServices.Extensions" Version="6.0.10" />
+	  <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.10" />
+	  <PackageReference Include="Microsoft.AspNetCore.SpaServices.Extensions" Version="8.0.10" />
 	  <PackageReference Include="Quartz" Version="3.15.1" />
 	  <PackageReference Include="Quartz.AspNetCore" Version="3.8.0" />
 	  <PackageReference Include="Quartz.Extensions.DependencyInjection" Version="3.15.1" />
@@ -74,8 +74,7 @@
 	  <PackageReference Include="Serilog" Version="3.1.1" />
 	  <PackageReference Include="Serilog.Sinks.Seq" Version="4.0.0" />
 	  <PackageReference Include="Serilog.Sinks.File" Version="5.0.0" />
-	  <PackageReference Include="System.Net.Http" Version="4.3.4" />
-	  <PackageReference Include="System.Text.RegularExpressions" Version="4.3.1" />
+	  <!-- System.Net.Http / System.Text.RegularExpressions 由 .NET 共享框架内置，移除含历史 CVE 的冗余引用 -->
 		<!--<PackageReference Include="BouncyCastle.NetCore" Version="2.2.1" />-->
 	</ItemGroup>
 
