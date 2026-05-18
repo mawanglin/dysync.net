@@ -72,6 +72,45 @@ namespace dy.net.Tests
             Assert.Equal("<0.01", dto.VideoMixSize);
             Assert.Equal("<0.01", dto.VideoSeriesSize);
             Assert.Equal("3.00", dto.GraphicVideoSize);
+
+            // Categories：按 Tag1 分组，空 Tag1 显示为「其他」，按 Count 降序
+            Assert.Equal(2, dto.Categories.Count);
+            Assert.Equal("搞笑", dto.Categories[0].Name);
+            Assert.Equal(2L, dto.Categories[0].Count);
+            Assert.Equal("其他", dto.Categories[1].Name);
+            Assert.Equal(1L, dto.Categories[1].Count);
+
+            // Authors：按 Author 分组，Count 降序，Icon/UperId 取分组内最后一行
+            Assert.Equal(2, dto.Authors.Count);
+            Assert.Equal("作者甲", dto.Authors[0].Name);
+            Assert.Equal(2L, dto.Authors[0].Count);
+            Assert.Equal("authorA", dto.Authors[0].UperId);
+            Assert.Equal("作者乙", dto.Authors[1].Name);
+            Assert.Equal(1L, dto.Authors[1].Count);
+        }
+
+        [Fact]
+        public async System.Threading.Tasks.Task GetChartData_multi_day_locks_grouping_and_order()
+        {
+            using var t = new TestDb();
+            var d1 = System.DateTime.Now.AddDays(-1);
+            var d3 = System.DateTime.Now.AddDays(-3);
+            await t.Db.Insertable(new System.Collections.Generic.List<DouyinVideo>
+            {
+                V("11","authorA","作者甲",1*GB,VideoTypeEnum.dy_collects,"搞笑",0,"h1",d1),
+                V("12","authorA","作者甲",1*GB,VideoTypeEnum.dy_favorite,"搞笑",0,"",  d3),
+                V("13","authorB","作者乙",1*GB,VideoTypeEnum.dy_follows, "",   1,"h3",d3),
+            }).ExecuteCommandAsync();
+
+            var chart = await MakeService(t).GetChartData(7);
+
+            Assert.Equal(2, chart.Count);
+            // Date 由 DateTime.Now 派生，按 d1/d3 动态比较（避免绝对日期串每日漂移）
+            Assert.Equal($"{d1:yyyyMMdd},{d3:yyyyMMdd}", string.Join(",", chart.Select(c => c.Date)));
+            Assert.Equal("1,0", string.Join(",", chart.Select(c => c.Collect)));
+            Assert.Equal("0,1", string.Join(",", chart.Select(c => c.Favorite)));
+            Assert.Equal("0,1", string.Join(",", chart.Select(c => c.Follow)));
+            Assert.Equal("0,1", string.Join(",", chart.Select(c => c.Graphic)));
         }
 
         [Fact]
