@@ -22,8 +22,14 @@ projects target net8.0; drop it on a net8.0 SDK.) Filter a single class with
 | `DouyinFileNameHelper` | `DouyinFileNameHelperTests` | `SanitizeLinuxFileName` (illegal-char scrub, whitespace strip, folder mode, control chars), `KeepChineseLettersAndNumbers`, `RemoveNumberSuffix`, `LimitUnifiedCount` |
 | `Md5Util.Md5` | `PureHelperTests` | Standard RFC-1321 MD5 output |
 | `VideoTitleGenerator.Generate` | `PureHelperTests` | Placeholder substitution, char-filtering of title/author, unknown-token passthrough, empty-field placeholder, 60-char cap |
-| `DouyinVideoService.GetStatics` | `VideoStatsCharacterizationTests` | Full `VideoStaticsDto` snapshot: counts by type, distinct author/category, GB size formatting incl. the `<0.01` zero-substitution branch |
-| `DouyinVideoService.GetChartData` | `VideoStatsCharacterizationTests` | Per-day `SyncTime` grouping and per-type counts (Graphic = empty `FileHash`) |
+| `DouyinVideoService.GetStatics` | `VideoStatsCharacterizationTests` | Full `VideoStaticsDto` snapshot: counts by type, distinct author/category, GB size formatting incl. the `<0.01` zero-substitution branch, **plus the `Categories` list (Tag1 grouping, empty→`其他`, desc order) and `Authors` list (Author grouping, desc order, last-row `Icon`/`UperId` semantics)** |
+| `DouyinVideoService.GetChartData` | `VideoStatsCharacterizationTests` | Per-day `SyncTime` grouping and per-type counts (Graphic = empty `FileHash`), **single-day and multi-day group ordering** |
+
+> These tests were deliberately widened (Categories/Authors/multi-day) before
+> the in-memory→SQL aggregation refactor, then `GetStatics`/`GetChartData` were
+> rewritten to push counts/sums to SQL and use narrow column projections
+> instead of `GetAllAsync()`. The suite staying green is the proof that the
+> refactor changed performance only, not behavior.
 
 DB-bound tests run against a real temporary SQLite file built by SqlSugar
 CodeFirst (`TestDb`), i.e. the production data stack — not mocks.
