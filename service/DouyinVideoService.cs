@@ -106,36 +106,37 @@ namespace dy.net.service
         public async Task<VideoStaticsDto> GetStatics()
         {
 
-            List<DouyinVideo> list = await this._dyCollectVideoRepository.GetAllAsync();
-            if (!list.Any())
+            var s = await this._dyCollectVideoRepository.GetStaticsScalarAsync();
+            if (s.VideoCount == 0)
                 return new VideoStaticsDto();
-            var Categories = list.GroupBy(x => x.Tag1).Select(x => new VideoStaticsItemDto { Name = x.Key, Count = x.LongCount() }).OrderByDescending(p => p.Count).ToList();
+            var tag1List = await this._dyCollectVideoRepository.GetTag1ProjectionAsync();
+            var Categories = tag1List.GroupBy(x => x).Select(x => new VideoStaticsItemDto { Name = x.Key, Count = x.LongCount() }).OrderByDescending(p => p.Count).ToList();
             Categories.Where(x => string.IsNullOrWhiteSpace(x.Name)).ToList().ForEach(x => x.Name = "其他");
             var data = new VideoStaticsDto
             {
-                AuthorCount = list.Select(x => x.AuthorId).Distinct().Count(),
-                CategoryCount = list.Select(x => x.Tag1).Distinct().Count(),
-                VideoCount = list.Count,
+                AuthorCount = s.AuthorCount,
+                CategoryCount = s.CategoryCount,
+                VideoCount = s.VideoCount,
                 Categories = Categories,
-                FavoriteCount = list.Count(x => x.ViedoType == VideoTypeEnum.dy_favorite),
-                CollectCount = list.Count(x => x.ViedoType == VideoTypeEnum.dy_collects || x.ViedoType == VideoTypeEnum.dy_custom_collect),
-                FollowCount = list.Count(x => x.ViedoType == VideoTypeEnum.dy_follows),
-                GraphicVideoCount = list.Count(x => x.IsMergeVideo == 1),
-                MixCount = list.Count(x => x.ViedoType == VideoTypeEnum.dy_mix),
-                SeriesCount = list.Count(x => x.ViedoType == VideoTypeEnum.dy_series),
-                VideoSizeTotal = DouyinFileUtils.ConvertBytesToGb(list.Sum(x => x.FileSize)),
-                VideoFavoriteSize = DouyinFileUtils.ConvertBytesToGb(list.Where(x => x.ViedoType == VideoTypeEnum.dy_favorite).Sum(x => x.FileSize)),
-                VideoCollectSize = DouyinFileUtils.ConvertBytesToGb(list.Where(x => x.ViedoType == VideoTypeEnum.dy_collects || x.ViedoType == VideoTypeEnum.dy_custom_collect).Sum(x => x.FileSize)),
-                VideoFollowSize = DouyinFileUtils.ConvertBytesToGb(list.Where(x => x.ViedoType == VideoTypeEnum.dy_follows).Sum(x => x.FileSize)),
-                VideoMixSize = DouyinFileUtils.ConvertBytesToGb(list.Where(x => x.ViedoType == VideoTypeEnum.dy_mix).Sum(x => x.FileSize)),
-                VideoSeriesSize = DouyinFileUtils.ConvertBytesToGb(list.Where(x => x.ViedoType == VideoTypeEnum.dy_series).Sum(x => x.FileSize)),
-                GraphicVideoSize = DouyinFileUtils.ConvertBytesToGb(list.Where(x => x.IsMergeVideo == 1).Sum(x => x.FileSize)),
+                FavoriteCount = s.FavoriteCount,
+                CollectCount = s.CollectCount,
+                FollowCount = s.FollowCount,
+                GraphicVideoCount = s.GraphicVideoCount,
+                MixCount = s.MixCount,
+                SeriesCount = s.SeriesCount,
+                VideoSizeTotal = DouyinFileUtils.ConvertBytesToGb(s.TotalSize),
+                VideoFavoriteSize = DouyinFileUtils.ConvertBytesToGb(s.FavoriteSize),
+                VideoCollectSize = DouyinFileUtils.ConvertBytesToGb(s.CollectSize),
+                VideoFollowSize = DouyinFileUtils.ConvertBytesToGb(s.FollowSize),
+                VideoMixSize = DouyinFileUtils.ConvertBytesToGb(s.MixSize),
+                VideoSeriesSize = DouyinFileUtils.ConvertBytesToGb(s.SeriesSize),
+                GraphicVideoSize = DouyinFileUtils.ConvertBytesToGb(s.GraphicSize),
 
                 //TotalDiskSize= ByteToGbConverter.GetHostTotalDiskSpaceGB(),
             };
             if (data.GraphicVideoSize == "0.00")
             {
-                if (list.Where(x => x.IsMergeVideo == 1).Sum(x => x.FileSize) > 0)
+                if (s.GraphicSize > 0)
                 {
                     data.GraphicVideoSize = "<0.01";//避免显示0.00误导用户
                 }
@@ -162,7 +163,8 @@ namespace dy.net.service
             {
                 data.VideoSeriesSize = "<0.01";//避免显示0.00误导用户
             }
-            data.Authors = list.GroupBy(x => x.Author).Select(x => new VideoStaticsItemDto
+            var authorRows = await this._dyCollectVideoRepository.GetAuthorProjectionAsync();
+            data.Authors = authorRows.GroupBy(x => x.Author).Select(x => new VideoStaticsItemDto
             {
                 Name = x.Key,
                 Count = x.LongCount(),
