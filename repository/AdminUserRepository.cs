@@ -112,9 +112,11 @@ namespace dy.net.repository
             if (string.IsNullOrWhiteSpace(pwd)) pwd = "douyin2026";
             var password = Md5Util.Md5(pwd);
 
-            string sql = $" Update login_user_info SET Password='{password}'";
+            // 参数化，杜绝 SQL 注入。注意：无 WHERE 为单管理员场景的既有语义，
+            // 行范围未改动以避免行为变更；多用户场景需另行加 WHERE。
+            const string sql = "UPDATE login_user_info SET Password=@pwd";
 
-            return this.Db.Ado.ExecuteCommand(sql) > 0;
+            return this.Db.Ado.ExecuteCommand(sql, new SqlSugar.SugarParameter("@pwd", password)) > 0;
         }
     }
 }
