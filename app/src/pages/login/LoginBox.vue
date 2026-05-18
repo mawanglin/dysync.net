@@ -143,9 +143,9 @@ onMounted(() => {
   const savedUser = localStorage.getItem('rememberedUser');
   if (savedUser) {
     try {
-      const { username, password } = JSON.parse(savedUser);
+      // 仅恢复用户名，绝不持久化/回填密码
+      const { username } = JSON.parse(savedUser);
       form.username = username;
-      form.password = password;
       rememberPassword.value = true;
     } catch (e) {
       console.error('读取保存的用户信息失败', e);
@@ -169,22 +169,19 @@ async function login(params: LoginFormProps) {
   loading.value = true;
 
   // 根据记住密码状态保存/清除用户信息
+  // 仅记住用户名；密码绝不写入 localStorage（凭据窃取面）
   if (rememberPassword.value) {
     localStorage.setItem(
       'rememberedUser',
-      JSON.stringify({
-        username: params.username,
-        password: params.password,
-      })
+      JSON.stringify({ username: params.username })
     );
   } else {
     localStorage.removeItem('rememberedUser');
   }
 
   try {
-    const res = await accountStore.login(params.username, params.password);
+    await accountStore.login(params.username, params.password);
     emit('success', params);
-    console.log(res);
     message.success('登录成功！');
   } catch (e: any) {
     emit('failure', e.message || '登录失败', params);

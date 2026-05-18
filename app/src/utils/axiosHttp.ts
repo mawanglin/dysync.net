@@ -148,10 +148,17 @@ function createAxiosHttp(config: AxiosRequestConfig): AxiosHttp {
       }
     },
     setAuthorization(token: string, expires: number | Date, name?: string): void {
-      Cookie.set(name ?? _axios.defaults.xsrfCookieName!, token, { expires });
+      // sameSite=strict 抵御 CSRF（明文 http 下仍生效）；
+      // 仅在 HTTPS 下加 Secure，避免破坏文档化的直连 http 部署
+      Cookie.set(name ?? _axios.defaults.xsrfCookieName!, token, {
+        expires,
+        path: '/',
+        sameSite: 'strict',
+        secure: typeof location !== 'undefined' && location.protocol === 'https:',
+      });
     },
     removeAuthorization(name?: string): void {
-      Cookie.remove(name ?? _axios.defaults.xsrfCookieName!);
+      Cookie.remove(name ?? _axios.defaults.xsrfCookieName!, { path: '/' });
     },
     checkAuthorization(name?: string | undefined): boolean {
       return Boolean(Cookie.get(name ?? _axios.defaults.xsrfCookieName!));
