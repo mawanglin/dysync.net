@@ -51,7 +51,7 @@ namespace dy.net.extension
         static ServiceExtension()
         {
             // 初始化JWT密钥（仅一次）
-            _jwtKeyBytes = Encoding.ASCII.GetBytes(Md5Util.JWT_TOKEN_KEY);
+            _jwtKeyBytes = JwtKeyProvider.GetKeyBytes();
          
             // 初始化实体类型（仅一次反射，缓存结果）
             Assembly entityAssembly = Assembly.GetExecutingAssembly();
@@ -228,8 +228,10 @@ namespace dy.net.extension
                 {
                     ValidateIssuerSigningKey = true,
                     IssuerSigningKey = new SymmetricSecurityKey(_jwtKeyBytes), // 使用缓存的密钥
-                    ValidateIssuer = false,
-                    ValidateAudience = false,
+                    ValidateIssuer = true,
+                    ValidIssuer = JwtKeyProvider.Issuer,
+                    ValidateAudience = true,
+                    ValidAudience = JwtKeyProvider.Audience,
                     ValidateLifetime = true,
                     ClockSkew = TimeSpan.FromSeconds(60)
                 };

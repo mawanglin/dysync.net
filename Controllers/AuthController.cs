@@ -76,9 +76,14 @@ namespace dy.net.Controllers
                 }
                 else
                 {
-                    if (user.Password == Md5Util.Md5(loginUserInfo.Password))
+                    if (PasswordUtil.Verify(user.Password, loginUserInfo.Password))
                     {
-
+                        // 登录成功且仍是历史 MD5 → 透明升级为 PBKDF2
+                        if (PasswordUtil.IsLegacyMd5(user.Password))
+                        {
+                            user.Password = PasswordUtil.Hash(loginUserInfo.Password);
+                            await _userService.UpdateUser(user);
+                        }
                         var tokenString = GenerateJwtToken(user.UserName);
                         return Ok(new { code = 0, erro = "", token = tokenString, expires = 24 * 60 * 60 * 1000, data = user.UserName });
                     }
@@ -98,15 +103,14 @@ namespace dy.net.Controllers
                 new Claim(ClaimTypes.Name, username),
                 new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
              };
-            var k = Md5Util.JWT_TOKEN_KEY;
-            var key = new SymmetricSecurityKey(Encoding.ASCII.GetBytes(k));
+            var key = new SymmetricSecurityKey(JwtKeyProvider.GetKeyBytes());
             var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
             var expires = DateTime.Now.AddDays(7);
 
             var token = new JwtSecurityToken(
-                issuer: IdGener.GetLong().ToString(),
-                audience: IdGener.GetLong().ToString(),
+                issuer: JwtKeyProvider.Issuer,
+                audience: JwtKeyProvider.Audience,
                 claims: claims,
                 expires: expires,
                 signingCredentials: credentials
