@@ -12,6 +12,47 @@ namespace dy.net.repository
         {
         }
 
+        /// <summary>GetStatics 标量聚合：一次性取回全部计数与按类型的字节求和（服务端 SQL）。</summary>
+        public async Task<VideoStaticsScalar> GetStaticsScalarAsync()
+        {
+            return new VideoStaticsScalar
+            {
+                VideoCount        = await Db.Queryable<DouyinVideo>().CountAsync(),
+                AuthorCount       = await Db.Queryable<DouyinVideo>().Select(x => x.AuthorId).Distinct().CountAsync(),
+                CategoryCount     = await Db.Queryable<DouyinVideo>().Select(x => x.Tag1).Distinct().CountAsync(),
+                FavoriteCount     = await Db.Queryable<DouyinVideo>().Where(x => x.ViedoType == VideoTypeEnum.dy_favorite).CountAsync(),
+                CollectCount      = await Db.Queryable<DouyinVideo>().Where(x => x.ViedoType == VideoTypeEnum.dy_collects || x.ViedoType == VideoTypeEnum.dy_custom_collect).CountAsync(),
+                FollowCount       = await Db.Queryable<DouyinVideo>().Where(x => x.ViedoType == VideoTypeEnum.dy_follows).CountAsync(),
+                MixCount          = await Db.Queryable<DouyinVideo>().Where(x => x.ViedoType == VideoTypeEnum.dy_mix).CountAsync(),
+                SeriesCount       = await Db.Queryable<DouyinVideo>().Where(x => x.ViedoType == VideoTypeEnum.dy_series).CountAsync(),
+                GraphicVideoCount = await Db.Queryable<DouyinVideo>().Where(x => x.IsMergeVideo == 1).CountAsync(),
+                TotalSize         = await Db.Queryable<DouyinVideo>().SumAsync(x => x.FileSize),
+                FavoriteSize      = await Db.Queryable<DouyinVideo>().Where(x => x.ViedoType == VideoTypeEnum.dy_favorite).SumAsync(x => x.FileSize),
+                CollectSize       = await Db.Queryable<DouyinVideo>().Where(x => x.ViedoType == VideoTypeEnum.dy_collects || x.ViedoType == VideoTypeEnum.dy_custom_collect).SumAsync(x => x.FileSize),
+                FollowSize        = await Db.Queryable<DouyinVideo>().Where(x => x.ViedoType == VideoTypeEnum.dy_follows).SumAsync(x => x.FileSize),
+                MixSize           = await Db.Queryable<DouyinVideo>().Where(x => x.ViedoType == VideoTypeEnum.dy_mix).SumAsync(x => x.FileSize),
+                SeriesSize        = await Db.Queryable<DouyinVideo>().Where(x => x.ViedoType == VideoTypeEnum.dy_series).SumAsync(x => x.FileSize),
+                GraphicSize       = await Db.Queryable<DouyinVideo>().Where(x => x.IsMergeVideo == 1).SumAsync(x => x.FileSize),
+            };
+        }
+
+        /// <summary>Categories：仅取 Tag1 投影，分组在内存完成（与原 LINQ 语义一致），不再载入大字段。</summary>
+        public async Task<List<string>> GetTag1ProjectionAsync()
+            => await Db.Queryable<DouyinVideo>().Select(x => x.Tag1).ToListAsync();
+
+        /// <summary>Authors：仅取分组所需 4 列投影，保持插入顺序（与原 GetAllAsync().GroupBy 一致）。</summary>
+        public async Task<List<AuthorProjection>> GetAuthorProjectionAsync()
+            => await Db.Queryable<DouyinVideo>()
+                       .Select(x => new AuthorProjection { Author = x.Author, AuthorAvatarUrl = x.AuthorAvatarUrl, AuthorId = x.AuthorId, DyUserId = x.DyUserId })
+                       .ToListAsync();
+
+        /// <summary>GetChartData：仅取 SyncTime/类型/FileHash 投影，时间过滤下推到 SQL。</summary>
+        public async Task<List<ChartProjection>> GetChartProjectionAsync(System.DateTime after)
+            => await Db.Queryable<DouyinVideo>()
+                       .Where(x => x.SyncTime > after)
+                       .Select(x => new ChartProjection { SyncTime = x.SyncTime, ViedoType = x.ViedoType, FileHash = x.FileHash })
+                       .ToListAsync();
+
 
 
 
