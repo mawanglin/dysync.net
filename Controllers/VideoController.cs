@@ -9,6 +9,7 @@ namespace dy.net.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
+    [Authorize]
     public class VideoController : ControllerBase
     {
         private readonly DouyinVideoService douyinVideoService;

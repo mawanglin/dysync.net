@@ -1,11 +1,13 @@
 ﻿using dy.net.model.dto;
 using dy.net.service;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace dy.net.Controllers
 {
     [Route("api/[controller]/[action]")]
     [ApiController]
+    [Authorize]
     public class LogsController : ControllerBase
     {
         private readonly IWebHostEnvironment webHostEnvironment;
@@ -20,7 +22,17 @@ namespace dy.net.Controllers
         [HttpGet("/api/logs/GetLog/{type}/{date}")]
         public async Task<IActionResult> GetLog([FromRoute] string type, [FromRoute] string date)
         {
-            var filePath = Path.Combine(webHostEnvironment.IsDevelopment() ? Directory.GetCurrentDirectory() : AppDomain.CurrentDomain.BaseDirectory, "logs", $"log-{type}-{date}.txt");
+            if (!System.Text.RegularExpressions.Regex.IsMatch(type ?? "", "^[A-Za-z]+$")
+                || !System.Text.RegularExpressions.Regex.IsMatch(date ?? "", "^\\d{8}$"))
+            {
+                return BadRequest("非法参数");
+            }
+            var logsRoot = Path.GetFullPath(Path.Combine(webHostEnvironment.IsDevelopment() ? Directory.GetCurrentDirectory() : AppDomain.CurrentDomain.BaseDirectory, "logs"));
+            var filePath = Path.GetFullPath(Path.Combine(logsRoot, $"log-{type}-{date}.txt"));
+            if (!filePath.StartsWith(logsRoot + Path.DirectorySeparatorChar, StringComparison.Ordinal))
+            {
+                return BadRequest("非法路径");
+            }
             if (!System.IO.File.Exists(filePath))
             {
                 var msg = $"{date}，没有发现{type}的日志";
