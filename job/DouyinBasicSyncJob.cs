@@ -188,9 +188,7 @@ namespace dy.net.job
         /// <param name="data">当前获取到的视频数据</param>
         /// <returns>下一页数据的游标</returns>
         private static string GetNextCursor(DouyinVideoInfoResponse data)
-        {
-            return data?.Cursor ?? (data?.MaxCursor ?? "0");
-        }
+            => SyncDecisionHelper.GetNextCursor(data);
 
 
         /// <summary>
@@ -481,45 +479,8 @@ namespace dy.net.job
         /// <param name="followed"></param>
         /// <returns>是否需要终止循环</returns>
         private bool IsSyncLimitReached(DouyinCookie cookie, AppConfig config, int syncCount, DouyinCollectCate cate, DouyinFollowed followed)
-        {
-            if (cate != null && cate.CateType != VideoTypeEnum.dy_custom_collect)
-            {
-                if (syncCount >= 30)
-                {
-                    Log.Debug($"[{cookie.UserName}][{VideoType.GetDesc()}]:本次同步数量{syncCount}，等下次任务继续同步");
-                    return true;
-                }
+            => SyncDecisionHelper.IsSyncLimitReached(VideoType, cookie, config, syncCount, cate, followed);
 
-            }
-            else
-            {
-                if (syncCount >= config.BatchCount)
-                {
-                    Log.Debug($"[{cookie.UserName}][{VideoType.GetDesc()}]:本次同步数量{syncCount}，已达配置上限{config.BatchCount}，等下次任务继续同步");
-                    return true;
-                }
-
-            }
-            if (VideoType == VideoTypeEnum.dy_collects || VideoType == VideoTypeEnum.dy_favorite)
-                return config.OnlySyncNew;
-
-            return VideoType == VideoTypeEnum.dy_follows && !followed.FullSync;
-
-            //// 获取当前视频类型对应的状态判断逻辑
-            //if (!_syncStatusCheckMap.TryGetValue(VideoType, out var isSyncCompleted))
-            //{
-            //    //Log.Debug($"[{VideoType.GetVideoTypeDesc()}]无匹配的同步状态判断规则，不终止循环");
-            //    return false;
-            //}
-
-            //// 状态满足则记录日志并返回「终止循环」
-            //if (isSyncCompleted.Invoke(cookie))
-            //{
-            //    Log.Debug($"[{cookie.UserName}][{VideoType.GetDesc()}]本次同步达到上限{config.BatchCount}，停止同步!!!");
-            //    return true;
-            //}
-
-        }
         /// <summary>
         /// 遍历视频列表，分别处理每个视频和图片集
         /// </summary>
@@ -1324,7 +1285,7 @@ namespace dy.net.job
         /// </summary>
         /// <param name="item">视频信息</param>
         /// <returns>如果视频数据有效，则为true；否则为false</returns>
-        private static bool IsAwemeValid(Aweme item) => item != null && item.Video != null && item.Video.BitRate != null;
+        private static bool IsAwemeValid(Aweme item) => SyncDecisionHelper.IsAwemeValid(item);
 
         /// <summary>
         /// 获取视频标签
@@ -1333,14 +1294,7 @@ namespace dy.net.job
         /// <param name="item">视频信息</param>
         /// <returns>一个元组，包含三个级别的视频标签</returns>
         protected (string tag1, string tag2, string tag3) GetVideoTags(Aweme item)
-        {
-            var tags = item.VideoTags;
-            return (
-                tags?.FirstOrDefault(x => x.Level == 1)?.TagName,
-                tags?.FirstOrDefault(x => x.Level == 2)?.TagName,
-                tags?.FirstOrDefault(x => x.Level == 3)?.TagName
-            );
-        }
+            => SyncDecisionHelper.GetVideoTags(item);
 
 
         /// <summary>
