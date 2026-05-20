@@ -452,5 +452,105 @@ namespace dy.net.Tests
                 item, new AppConfig { VideoEncoder = null });
             Assert.Same(h264Playable, picked);
         }
+
+        // ---- BuildVideoFileName ----
+
+        // pin: current behavior, not aspirational
+
+        private static Aweme AwemeWithId(string awemeId)
+            => new Aweme { AwemeId = awemeId };
+
+        private static Aweme AwemeWithEpisode(string awemeId, int episode)
+            => new Aweme
+            {
+                AwemeId = awemeId,
+                MixInfo = new MixInfo { Statis = new MixStatis { CurrentEpisode = episode } },
+            };
+
+        private static Aweme AwemeWithBitRateFormat(string awemeId, string format)
+            => new Aweme
+            {
+                AwemeId = awemeId,
+                Video = new Video { BitRate = new List<VideoBitRate> { new VideoBitRate { Format = format } } },
+            };
+
+        private static Aweme AwemeWithVideoNull(string awemeId)
+            => new Aweme { AwemeId = awemeId, Video = null };
+
+        private static Aweme AwemeWithBitRateNull(string awemeId)
+            => new Aweme { AwemeId = awemeId, Video = new Video { BitRate = null } };
+
+        private static DouyinCollectCate Cate(VideoTypeEnum cateType)
+            => new DouyinCollectCate { CateType = cateType };
+
+        [Fact]
+        public void BuildVideoFileName_CustomCollect_WithBitRate_UsesFormat()
+        {
+            var name = SyncDecisionHelper.BuildVideoFileName(
+                VideoTypeEnum.dy_custom_collect,
+                AwemeWithBitRateFormat("123", "webm"),
+                Cate(VideoTypeEnum.dy_custom_collect));
+            Assert.Equal("123.webm", name);
+        }
+
+        [Fact]
+        public void BuildVideoFileName_CustomCollect_VideoNull_Mp4Fallback()
+        {
+            var name = SyncDecisionHelper.BuildVideoFileName(
+                VideoTypeEnum.dy_custom_collect,
+                AwemeWithVideoNull("123"),
+                Cate(VideoTypeEnum.dy_custom_collect));
+            Assert.Equal("123.mp4", name);
+        }
+
+        [Fact]
+        public void BuildVideoFileName_CustomCollect_BitRateNull_Mp4Fallback()
+        {
+            var name = SyncDecisionHelper.BuildVideoFileName(
+                VideoTypeEnum.dy_custom_collect,
+                AwemeWithBitRateNull("123"),
+                Cate(VideoTypeEnum.dy_custom_collect));
+            Assert.Equal("123.mp4", name);
+        }
+
+        [Fact]
+        public void BuildVideoFileName_Series_NumericEpisode_S01E_D2_Padded()
+        {
+            var name = SyncDecisionHelper.BuildVideoFileName(
+                VideoTypeEnum.dy_series,
+                AwemeWithEpisode("123", 5),
+                cate: null);
+            Assert.Equal("S01E05.mp4", name);
+        }
+
+        [Fact]
+        public void BuildVideoFileName_Mix_NumericEpisode_S01E_D2_NotPadded()
+        {
+            var name = SyncDecisionHelper.BuildVideoFileName(
+                VideoTypeEnum.dy_mix,
+                AwemeWithEpisode("123", 12),
+                cate: null);
+            Assert.Equal("S01E12.mp4", name);
+        }
+
+        [Fact]
+        public void BuildVideoFileName_DefaultBranch_AwemeIdMp4_WhenNotCustomCollectAndNotEpisodic()
+        {
+            var name = SyncDecisionHelper.BuildVideoFileName(
+                VideoTypeEnum.dy_follows,
+                AwemeWithId("123"),
+                cate: null);
+            Assert.Equal("123.mp4", name);
+        }
+
+        [Fact]
+        public void BuildVideoFileName_CateNonCustomCollect_FollowsDefaultBranch()
+        {
+            var name = SyncDecisionHelper.BuildVideoFileName(
+                VideoTypeEnum.dy_collects,
+                AwemeWithId("123"),
+                Cate(VideoTypeEnum.dy_collects));
+            Assert.Equal("123.mp4", name);
+        }
     }
 }
