@@ -131,5 +131,42 @@ namespace dy.net.utils
             }
             return v;
         }
+
+        /// <summary>
+        /// 从 DouyinBasicSyncJob.GetVideoFileName 抽出的纯文件名构造逻辑。
+        /// 行为逐字保留：cate=custom_collect 用 BitRate.Format（或 mp4 兜底）；
+        /// videoType=dy_series/dy_mix 且 MixInfo?.Statis?.CurrentEpisode 链非 null
+        /// → "S01E{D2}.mp4"；其余 → "{AwemeId}.mp4"。
+        /// 原方法 cookie/config 参数在 base body 中未引用，故 helper 签名不带这两项。
+        /// 抽象属性 VideoType 提升为 videoType 入参。
+        /// 「TryParse 失败」分支在当前 model（MixStatis.CurrentEpisode 为 int）下不可达；
+        /// 保留原代码不删，但不为其编写特征化测试。
+        /// 由特征化测试 SyncDecisionHelperTests 锁定当前行为。
+        /// </summary>
+        public static string BuildVideoFileName(VideoTypeEnum videoType, Aweme item, DouyinCollectCate cate)
+        {
+            if (cate != null && cate.CateType == VideoTypeEnum.dy_custom_collect)
+            {
+                if (item.Video != null && item.Video.BitRate != null)
+                    return $"{item.AwemeId}.{item.Video.BitRate.FirstOrDefault().Format}";
+                return $"{item.AwemeId}.mp4";
+            }
+            else
+            {
+                if ((videoType == VideoTypeEnum.dy_series || videoType == VideoTypeEnum.dy_mix) && item.MixInfo?.Statis?.CurrentEpisode != null)
+                {
+                    // 第一步：将 CurrentEpisode 转换为整数（兼容字符串/数字类型）
+                    if (int.TryParse(item.MixInfo.Statis.CurrentEpisode.ToString(), out int episodeNum))
+                    {
+                        // 第二步：格式化数字，确保 1-9 补 0，10+ 保持原样
+                        string episodeStr = episodeNum.ToString("D2");
+                        return $"S01E{episodeStr}.mp4";
+                    }
+                    // 容错：如果转换失败，使用原始值（避免程序报错）
+                    return $"S01E{item.MixInfo.Statis.CurrentEpisode}.mp4";
+                }
+                return $"{item.AwemeId}.mp4";
+            }
+        }
     }
 }

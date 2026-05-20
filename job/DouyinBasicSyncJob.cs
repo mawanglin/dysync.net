@@ -227,30 +227,7 @@ namespace dy.net.job
         /// <param name="cate"></param>
         /// <returns>生成的视频文件名</returns>
         protected virtual string GetVideoFileName(DouyinCookie cookie, Aweme item, AppConfig config, DouyinCollectCate cate)
-        {
-            if (cate != null && cate.CateType == VideoTypeEnum.dy_custom_collect)
-            {
-                if (item.Video != null && item.Video.BitRate != null)
-                    return $"{item.AwemeId}.{item.Video.BitRate.FirstOrDefault().Format}";
-                return $"{item.AwemeId}.mp4";
-            }
-            else
-            {
-                if ((VideoType == VideoTypeEnum.dy_series || VideoType == VideoTypeEnum.dy_mix) && item.MixInfo?.Statis?.CurrentEpisode != null)
-                {
-                    // 第一步：将 CurrentEpisode 转换为整数（兼容字符串/数字类型）
-                    if (int.TryParse(item.MixInfo.Statis.CurrentEpisode.ToString(), out int episodeNum))
-                    {
-                        // 第二步：格式化数字，确保 1-9 补 0，10+ 保持原样
-                        string episodeStr = episodeNum.ToString("D2");
-                        return $"S01E{episodeStr}.mp4";
-                    }
-                    // 容错：如果转换失败，使用原始值（避免程序报错）
-                    return $"S01E{item.MixInfo.Statis.CurrentEpisode}.mp4";
-                }
-                return $"{item.AwemeId}.mp4";
-            }
-        }
+            => SyncDecisionHelper.BuildVideoFileName(VideoType, item, cate);
         /// <summary>
         /// 获取作者头像保存的基础路径
         /// 子类必须实现此方法，指定头像的存储位置
