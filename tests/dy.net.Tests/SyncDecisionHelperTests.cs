@@ -348,5 +348,109 @@ namespace dy.net.Tests
                 "save.mp4", "cs.jpg", "ap", FixedId, FixedSync, null);
             Assert.Equal(0L, v.FileSize);
         }
+
+        // ---- PickBestVideoBitRate ----
+
+        // pin: current behavior, not aspirational
+
+        private static VideoBitRate Br(int bitRateValue, int isH265, List<string> urlList)
+            => new VideoBitRate
+            {
+                BitRateValue = bitRateValue,
+                IsH265 = isH265,
+                PlayAddr = new PlayAddr { UrlList = urlList },
+            };
+
+        private static VideoBitRate BrNoPlayAddr(int bitRateValue, int isH265)
+            => new VideoBitRate { BitRateValue = bitRateValue, IsH265 = isH265, PlayAddr = null };
+
+        private static Aweme AwemeWith(params VideoBitRate[] bitRates)
+            => new Aweme { Video = new Video { BitRate = bitRates.ToList() } };
+
+        [Fact]
+        public void PickBestVideoBitRate_H265Preferred_PicksHighestH265()
+        {
+            var h265Lo = Br(1000, 1, new List<string> { "a" });
+            var h265Hi = Br(5000, 1, new List<string> { "a" });
+            var h264Hi = Br(9000, 0, new List<string> { "a" });
+            var item = AwemeWith(h265Lo, h265Hi, h264Hi);
+            var picked = SyncDecisionHelper.PickBestVideoBitRate(
+                item, new AppConfig { VideoEncoder = 265 });
+            Assert.Same(h265Hi, picked);
+        }
+
+        [Fact]
+        public void PickBestVideoBitRate_H265Preferred_FallsBackToH264_WhenNoPlayableH265()
+        {
+            var h265Empty = Br(8000, 1, new List<string>());
+            var h265Null = BrNoPlayAddr(7000, 1);
+            var h264Lo = Br(2000, 0, new List<string> { "a" });
+            var h264Hi = Br(6000, 0, new List<string> { "a" });
+            var item = AwemeWith(h265Empty, h265Null, h264Lo, h264Hi);
+            var picked = SyncDecisionHelper.PickBestVideoBitRate(
+                item, new AppConfig { VideoEncoder = 265 });
+            Assert.Same(h264Hi, picked);
+        }
+
+        [Fact]
+        public void PickBestVideoBitRate_H265Preferred_ReturnsNull_WhenNothingPlayable()
+        {
+            var h265Empty = Br(5000, 1, new List<string>());
+            var h264NullUrl = Br(4000, 0, null);
+            var h264NoPlayAddr = BrNoPlayAddr(3000, 0);
+            var item = AwemeWith(h265Empty, h264NullUrl, h264NoPlayAddr);
+            var picked = SyncDecisionHelper.PickBestVideoBitRate(
+                item, new AppConfig { VideoEncoder = 265 });
+            Assert.Null(picked);
+        }
+
+        [Fact]
+        public void PickBestVideoBitRate_DefaultEncoder_PicksHighestH264()
+        {
+            var h265Hi = Br(9000, 1, new List<string> { "a" });
+            var h264Lo = Br(2000, 0, new List<string> { "a" });
+            var h264Hi = Br(6000, 0, new List<string> { "a" });
+            var item = AwemeWith(h265Hi, h264Lo, h264Hi);
+            var picked = SyncDecisionHelper.PickBestVideoBitRate(
+                item, new AppConfig { VideoEncoder = null });
+            Assert.Same(h264Hi, picked);
+        }
+
+        [Fact]
+        public void PickBestVideoBitRate_DefaultEncoder_NeverReturnsH265()
+        {
+            var h265Hi = Br(9000, 1, new List<string> { "a" });
+            var h264Hi = Br(6000, 0, new List<string> { "a" });
+            var item = AwemeWith(h265Hi, h264Hi);
+            var picked = SyncDecisionHelper.PickBestVideoBitRate(
+                item, new AppConfig { VideoEncoder = null });
+            Assert.Same(h264Hi, picked);
+        }
+
+        [Fact]
+        public void PickBestVideoBitRate_EncoderNot265_PicksH264Only()
+        {
+            // VideoEncoder.HasValue=true 但 != 265 → 走 else 分支（同默认）
+            var h265Hi = Br(9000, 1, new List<string> { "a" });
+            var h264Hi = Br(6000, 0, new List<string> { "a" });
+            var item = AwemeWith(h265Hi, h264Hi);
+            var picked = SyncDecisionHelper.PickBestVideoBitRate(
+                item, new AppConfig { VideoEncoder = 264 });
+            Assert.Same(h264Hi, picked);
+        }
+
+        [Fact]
+        public void PickBestVideoBitRate_SkipsBitRatesWithNullOrEmptyUrlList()
+        {
+            // 故意让"不可播放"的码率更高，验证它们被过滤而不是入选。
+            var h264Empty = Br(9999, 0, new List<string>());
+            var h264NullList = Br(8888, 0, null);
+            var h264NoPlayAddr = BrNoPlayAddr(7777, 0);
+            var h264Playable = Br(100, 0, new List<string> { "x" });
+            var item = AwemeWith(h264Empty, h264NullList, h264NoPlayAddr, h264Playable);
+            var picked = SyncDecisionHelper.PickBestVideoBitRate(
+                item, new AppConfig { VideoEncoder = null });
+            Assert.Same(h264Playable, picked);
+        }
     }
 }
