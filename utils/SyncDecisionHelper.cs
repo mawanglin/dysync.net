@@ -103,5 +103,33 @@ namespace dy.net.utils
             }
             return video;
         }
+
+        /// <summary>
+        /// 从 DouyinBasicSyncJob.GetBestMatchedVideoUrl 抽出的纯码流选择逻辑。
+        /// 行为逐字保留：encoder=265 时优先 H.265，无则回退 H.264；
+        /// 否则只挑 H.264。二者均按 BitRateValue 降序取首；
+        /// 只考虑 PlayAddr.UrlList 非空（非 null 且 Any()）的码流。
+        /// 由特征化测试 SyncDecisionHelperTests 锁定当前行为。
+        /// </summary>
+        public static VideoBitRate PickBestVideoBitRate(Aweme item, AppConfig config)
+        {
+            VideoBitRate v;
+            if (config.VideoEncoder.HasValue && config.VideoEncoder.Value == 265)
+            {
+                v = item.Video.BitRate.Where(v => v.IsH265 == 1 && v.PlayAddr?.UrlList != null && v.PlayAddr.UrlList.Any())
+                                .OrderByDescending(v => v.BitRateValue)
+                                .FirstOrDefault();
+                v ??= item.Video.BitRate.Where(v => v.IsH265 == 0 && v.PlayAddr?.UrlList != null && v.PlayAddr.UrlList.Any())
+                                .OrderByDescending(v => v.BitRateValue)
+                                .FirstOrDefault();
+            }
+            else
+            {
+                v = item.Video.BitRate.Where(v => v.IsH265 == 0 && v.PlayAddr?.UrlList != null && v.PlayAddr.UrlList.Any())
+                                  .OrderByDescending(v => v.BitRateValue)
+                                  .FirstOrDefault();
+            }
+            return v;
+        }
     }
 }

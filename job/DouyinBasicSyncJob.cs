@@ -900,27 +900,7 @@ namespace dy.net.job
         }
 
         private static VideoBitRate GetBestMatchedVideoUrl(Aweme item, AppConfig config)
-        {
-            VideoBitRate v;
-            if (config.VideoEncoder.HasValue && config.VideoEncoder.Value == 265)
-            {
-                v = item.Video.BitRate.Where(v => v.IsH265 == 1 && v.PlayAddr?.UrlList != null && v.PlayAddr.UrlList.Any())
-                                .OrderByDescending(v => v.BitRateValue)
-                                .FirstOrDefault();
-                v ??= item.Video.BitRate.Where(v => v.IsH265 == 0 && v.PlayAddr?.UrlList != null && v.PlayAddr.UrlList.Any())
-                                .OrderByDescending(v => v.BitRateValue)
-                                .FirstOrDefault();
-            }
-
-            else
-            {
-                v = item.Video.BitRate.Where(v => v.IsH265 == 0 && v.PlayAddr?.UrlList != null && v.PlayAddr.UrlList.Any())
-                                  .OrderByDescending(v => v.BitRateValue)
-                                  .FirstOrDefault();
-            }
-
-            return v;
-        }
+            => SyncDecisionHelper.PickBestVideoBitRate(item, config);
 
         /// <summary>
         /// 动态视频处理
