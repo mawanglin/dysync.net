@@ -1385,41 +1385,8 @@ namespace dy.net.job
         private async Task<DouyinVideo> CreateVideoEntity(AppConfig config,
             DouyinCookie cookie, Aweme item, VideoBitRate bitRate, string savePath, string coverSavePath, string avatorPath, List<DouyinMergeVideoDto> dynamicVideos = null, DouyinCollectCate cate = null)
         {
-            // 获取视频标签
-            var (tag1, tag2, tag3) = GetVideoTags(item);
-            var video = new DouyinVideo
-            {
-                ViedoType = VideoType,
-                AwemeId = item.AwemeId,
-                Author = item.Author?.Nickname,
-                AuthorId = item.Author?.Uid,
-                AuthorAvatar = avatorPath,
-                AuthorAvatarUrl = item.Author.AvatarLarger?.UrlList?.FirstOrDefault() ?? item.Author.AvatarThumb?.UrlList?.FirstOrDefault(),
-                CreateTime = DateTimeUtil.Convert10BitTimestamp(item.CreateTime),
-                VideoTitle = string.IsNullOrWhiteSpace(item.Desc) ? $"{item.Author?.Nickname}-{item.CreateTime}" : item.Desc,
-                //VideoTitleSimplify = VideoType == VideoTypeEnum.dy_follows? GetVideoSimplifyTitle(item):string.Empty,
-                Id = IdGener.GetLong().ToString(),
-                Resolution = $"{bitRate.PlayAddr.Width}×{bitRate.PlayAddr.Height}",
-                FileSize = bitRate.PlayAddr.DataSize ?? 0,
-                FileHash = bitRate.PlayAddr.FileHash,
-                Tag1 = tag1,
-                Tag2 = tag2,
-                Tag3 = tag3,
-                VideoUrl = bitRate.PlayAddr.UrlList?.FirstOrDefault(),
-                VideoCoverUrl = item.Video.Cover.UrlList?.FirstOrDefault(),
-                VideoSavePath = savePath,
-                VideoCoverSavePath = coverSavePath,
-                SyncTime = DateTime.Now,
-                DyUserId = item.AuthorUserId == 0 ? item.Author?.Uid : item.AuthorUserId.ToString(),
-                CookieId = cookie.Id,
-                OnlyImgOrOnlyMp3 = string.IsNullOrWhiteSpace(savePath) && !config.DownImageVideo && (config.DownImage || config.DownMp3),
-                CateId = cate?.Id,
-                CateXId = cate?.XId,
-            };
-            if (cate != null && cate.CateType != VideoTypeEnum.dy_custom_collect)
-            {
-                video.VideoTitle = (string.IsNullOrWhiteSpace(item.Desc) ? cate.Name : $"[{cate.Name}]" + "_" + item.Desc) + "_" + item.MixInfo.Statis.CurrentEpisode;
-            }
+            var video = SyncDecisionHelper.BuildVideoEntity(VideoType, config, cookie, item, bitRate,
+                savePath, coverSavePath, avatorPath, IdGener.GetLong().ToString(), DateTime.Now, cate);
             if (dynamicVideos != null && dynamicVideos.Count > 0)
             {
                 video.DynamicVideos = JsonConvert.SerializeObject(dynamicVideos);
