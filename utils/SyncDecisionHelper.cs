@@ -188,5 +188,58 @@ namespace dy.net.utils
                 Path.Combine(cookie.SavePath, subFolder + "_" + item.AwemeId)
             );
         }
+
+        /// <summary>
+        /// 从 DouyinBasicSyncJob.DownVideoCover(Aweme,...) 抽出的纯封面 URL 选取逻辑（无 I/O）。
+        /// 行为逐字保留：cate 非 null → MixInfo → Video（LastOrDefault）→ Music 三级兜底；
+        /// cate == null → Video（FirstOrDefault），空白则回落 Images[0].DynamicVideo.Cover。
+        /// 注意 cate 分支对 item.Video/Cover 无 ?. 空安全（与非-cate 分支不对称）——既有行为，
+        /// 逐字保留；分支内的中文注释与代码实际顺序不符，亦逐字保留不修。
+        /// 由特征化测试 SyncDecisionHelperTests 锁定当前行为。
+        /// </summary>
+        public static string PickCoverUrl(DouyinCollectCate cate, Aweme item)
+        {
+            // 定义封面URL变量
+            string coverUrl;
+
+            // 按照优先级获取封面URL
+            if (cate is not null)
+            {
+                // cate不为空时：优先MixInfo封面 → 其次Music高清封面 → 最后Video封面
+                coverUrl = item.MixInfo?.CoverUrl?.UrlList?.FirstOrDefault()
+                           ?? item.Video.Cover.UrlList?.LastOrDefault()
+                           ?? item.Music?.CoverHd?.UrlList?.FirstOrDefault();
+            }
+            else
+            {
+                // cate为空时：只取Video封面
+                coverUrl = item.Video?.Cover?.UrlList?.FirstOrDefault();
+                if (string.IsNullOrWhiteSpace(coverUrl))
+                {
+                    coverUrl = item.Images?.FirstOrDefault()?.DynamicVideo?.Cover?.UrlList?.FirstOrDefault();
+                }
+            }
+            return coverUrl;
+        }
+
+        /// <summary>
+        /// 从 DouyinBasicSyncJob.DownVideoCover(string,...) 抽出的纯海报路径派生逻辑（无 I/O）。
+        /// 行为逐字保留：dy_mix/dy_series → 同目录 "poster.jpg"；其余 → "{无后缀原名}-poster.jpg"。
+        /// 抽象属性 VideoType 提升为 videoType 入参。File.Exists / DownloadAsync 的 I/O 留在 job。
+        /// 由特征化测试 SyncDecisionHelperTests 锁定当前行为。
+        /// </summary>
+        public static string BuildCoverPosterPath(VideoTypeEnum videoType, string savePath)
+        {
+            string directoryPath = Path.GetDirectoryName(savePath); // 获取文件所在目录，
+            string newFileName = "poster.jpg";
+            if (videoType != VideoTypeEnum.dy_mix && videoType != VideoTypeEnum.dy_series)
+            {
+                string fileNameWithoutExt = Path.GetFileNameWithoutExtension(savePath); // 获取无后缀的原文件名，
+                newFileName = $"{fileNameWithoutExt}-poster.jpg"; // 拼接新文件名，
+            }
+
+            var coverSavePath = Path.Combine(directoryPath, newFileName);
+            return coverSavePath;
+        }
     }
 }

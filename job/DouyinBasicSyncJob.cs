@@ -1174,26 +1174,7 @@ namespace dy.net.job
         protected async Task<string> DownVideoCover(Aweme item, string savePath, DouyinCookie cookie, DouyinCollectCate cate,AppConfig config)
         {
             if (config.CloseNfo) return string.Empty;
-            // 定义封面URL变量
-            string coverUrl;
-
-            // 按照优先级获取封面URL
-            if (cate is not null)
-            {
-                // cate不为空时：优先MixInfo封面 → 其次Music高清封面 → 最后Video封面
-                coverUrl = item.MixInfo?.CoverUrl?.UrlList?.FirstOrDefault()
-                           ?? item.Video.Cover.UrlList?.LastOrDefault()
-                           ?? item.Music?.CoverHd?.UrlList?.FirstOrDefault();
-            }
-            else
-            {
-                // cate为空时：只取Video封面
-                coverUrl = item.Video?.Cover?.UrlList?.FirstOrDefault();
-                if (string.IsNullOrWhiteSpace(coverUrl))
-                {
-                    coverUrl = item.Images?.FirstOrDefault()?.DynamicVideo?.Cover?.UrlList?.FirstOrDefault();
-                }
-            }
+            var coverUrl = SyncDecisionHelper.PickCoverUrl(cate, item);
             // 调用下载封面的方法
             return await DownVideoCover(coverUrl, savePath, cookie, config);
         }
@@ -1300,15 +1281,7 @@ namespace dy.net.job
             if (string.IsNullOrWhiteSpace(coverUrl)) return string.Empty;
             if (string.IsNullOrWhiteSpace(savePath)) return string.Empty;
 
-            string directoryPath = Path.GetDirectoryName(savePath); // 获取文件所在目录，
-            string newFileName = "poster.jpg";
-            if (VideoType != VideoTypeEnum.dy_mix && VideoType != VideoTypeEnum.dy_series)
-            {
-                string fileNameWithoutExt = Path.GetFileNameWithoutExtension(savePath); // 获取无后缀的原文件名，
-                newFileName = $"{fileNameWithoutExt}-poster.jpg"; // 拼接新文件名，
-            }
-
-            var coverSavePath = Path.Combine(directoryPath, newFileName);
+            var coverSavePath = SyncDecisionHelper.BuildCoverPosterPath(VideoType, savePath);
 
 
             // 如果封面文件不存在，则下载
