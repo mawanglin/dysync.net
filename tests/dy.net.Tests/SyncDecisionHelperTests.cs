@@ -552,5 +552,76 @@ namespace dy.net.Tests
                 Cate(VideoTypeEnum.dy_collects));
             Assert.Equal("123.mp4", name);
         }
+
+        // ---- BuildVideoSaveFolderCandidates ----
+
+        // pin: current behavior, not aspirational
+
+        private static DouyinCookie FolderCookie(string savePath)
+            => new DouyinCookie { SavePath = savePath };
+
+        private static Aweme FolderAweme(string desc, string awemeId)
+            => new Aweme { Desc = desc, AwemeId = awemeId };
+
+        [Fact]
+        public void BuildVideoSaveFolderCandidates_Primary_CombinesSavePathWithSanitizedDesc()
+        {
+            var (primary, _) = SyncDecisionHelper.BuildVideoSaveFolderCandidates(
+                FolderCookie("/data"),
+                FolderAweme("我的视频", "123"));
+
+            var expected = Path.Combine(
+                "/data",
+                DouyinFileNameHelper.SanitizeLinuxFileName("我的视频", "123", true));
+            Assert.Equal(expected, primary);
+        }
+
+        [Fact]
+        public void BuildVideoSaveFolderCandidates_CollisionResolved_AppendsUnderscoreAwemeId()
+        {
+            var (_, collisionResolved) = SyncDecisionHelper.BuildVideoSaveFolderCandidates(
+                FolderCookie("/data"),
+                FolderAweme("我的视频", "123"));
+
+            var subFolder = DouyinFileNameHelper.SanitizeLinuxFileName("我的视频", "123", true);
+            var expected = Path.Combine("/data", subFolder + "_" + "123");
+            Assert.Equal(expected, collisionResolved);
+        }
+
+        [Fact]
+        public void BuildVideoSaveFolderCandidates_BlankDesc_FallsBackToAwemeIdAsSubFolder()
+        {
+            var (primary, collisionResolved) = SyncDecisionHelper.BuildVideoSaveFolderCandidates(
+                FolderCookie("/data"),
+                FolderAweme("", "123"));
+
+            var subFolder = DouyinFileNameHelper.SanitizeLinuxFileName("", "123", true);
+            Assert.Equal(Path.Combine("/data", subFolder), primary);
+            Assert.Equal(Path.Combine("/data", subFolder + "_" + "123"), collisionResolved);
+        }
+
+        [Fact]
+        public void BuildVideoSaveFolderCandidates_IllegalChars_SanitizedIntoSubFolder()
+        {
+            var (primary, _) = SyncDecisionHelper.BuildVideoSaveFolderCandidates(
+                FolderCookie("/data"),
+                FolderAweme("a/b:c", "123"));
+
+            var expected = Path.Combine(
+                "/data",
+                DouyinFileNameHelper.SanitizeLinuxFileName("a/b:c", "123", true));
+            Assert.Equal(expected, primary);
+        }
+
+        [Fact]
+        public void BuildVideoSaveFolderCandidates_BothCandidates_ShareSameSanitizedSubFolder()
+        {
+            var (primary, collisionResolved) = SyncDecisionHelper.BuildVideoSaveFolderCandidates(
+                FolderCookie("/data"),
+                FolderAweme("我的视频", "123"));
+
+            // collisionResolved 恰为 primary 词根 + "_" + AwemeId（仅后缀不同，词根一致）
+            Assert.Equal(primary + "_" + "123", collisionResolved);
+        }
     }
 }
