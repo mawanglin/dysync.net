@@ -202,20 +202,14 @@ namespace dy.net.job
         /// <returns>创建的视频保存文件夹路径</returns>
         protected virtual string CreateSaveFolder(DouyinCookie cookie, Aweme item, AppConfig config, DouyinFollowed followed, DouyinCollectCate cate)
         {
-            var subFolder = DouyinFileNameHelper.SanitizeLinuxFileName(item.Desc, item.AwemeId, true);
-            var folder = Path.Combine(cookie.SavePath, subFolder);
-            if (!Directory.Exists(folder))
+            var (primary, collisionResolved) = SyncDecisionHelper.BuildVideoSaveFolderCandidates(cookie, item);
+            if (!Directory.Exists(primary))
             {
-                Directory.CreateDirectory(folder);
+                Directory.CreateDirectory(primary);
+                return primary;
             }
-            else
-            {
-                //说明文件夹存在，检查里面有没有文件，如果已经有视频文件了，说明视频标题相同，那么应该重新创建文件夹,+id
-
-                folder = Path.Combine(cookie.SavePath, subFolder + "_" + item.AwemeId);
-            }
-            return folder;
-
+            //说明文件夹存在，检查里面有没有文件，如果已经有视频文件了，说明视频标题相同，那么应该重新创建文件夹,+id
+            return collisionResolved;
         }
 
         /// <summary>

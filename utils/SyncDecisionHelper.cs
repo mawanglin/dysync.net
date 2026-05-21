@@ -168,5 +168,25 @@ namespace dy.net.utils
                 return $"{item.AwemeId}.mp4";
             }
         }
+
+        /// <summary>
+        /// 从 DouyinBasicSyncJob.CreateSaveFolder 抽出的纯路径构造逻辑（无 I/O）。
+        /// 行为逐字保留：item.Desc/AwemeId 经 SanitizeLinuxFileName 清洗为子目录名，
+        /// 返回两条候选路径——primary（cookie.SavePath/子目录）与 collisionResolved
+        /// （撞名时的 cookie.SavePath/子目录_AwemeId）。
+        /// 目录存在性判断与 Directory.CreateDirectory 的 I/O 编排留在 job 内。
+        /// 原方法 config/followed/cate 参数在 base body 中未引用，故 helper 签名不带这三项。
+        /// 两条候选一并求值；SanitizeLinuxFileName 与 Path.Combine 均为纯函数，
+        /// 提前求值与原方法 else 分支的延迟求值可观察行为等价。
+        /// 由特征化测试 SyncDecisionHelperTests 锁定当前行为。
+        /// </summary>
+        public static (string primary, string collisionResolved) BuildVideoSaveFolderCandidates(DouyinCookie cookie, Aweme item)
+        {
+            var subFolder = DouyinFileNameHelper.SanitizeLinuxFileName(item.Desc, item.AwemeId, true);
+            return (
+                Path.Combine(cookie.SavePath, subFolder),
+                Path.Combine(cookie.SavePath, subFolder + "_" + item.AwemeId)
+            );
+        }
     }
 }
