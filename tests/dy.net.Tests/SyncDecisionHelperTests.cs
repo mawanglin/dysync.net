@@ -623,5 +623,113 @@ namespace dy.net.Tests
             // collisionResolved 恰为 primary 词根 + "_" + AwemeId（仅后缀不同，词根一致）
             Assert.Equal(primary + "_" + "123", collisionResolved);
         }
+
+        // ---- PickCoverUrl ----
+
+        // pin: current behavior, not aspirational
+
+        private static ImageInfo CoverImg(params string[] urls)
+            => new ImageInfo { UrlList = urls.ToList() };
+
+        [Fact]
+        public void PickCoverUrl_Cate_MixInfoCover_TakesMixInfoFirst()
+        {
+            var item = new Aweme
+            {
+                MixInfo = new MixInfo { CoverUrl = CoverImg("m1", "m2") },
+                Video = new Video { Cover = CoverImg("v1") },
+            };
+            var url = SyncDecisionHelper.PickCoverUrl(new DouyinCollectCate(), item);
+            Assert.Equal("m1", url);
+        }
+
+        [Fact]
+        public void PickCoverUrl_Cate_NoMixInfo_TakesVideoCoverLast()
+        {
+            var item = new Aweme
+            {
+                MixInfo = null,
+                Video = new Video { Cover = CoverImg("v1", "v2") },
+            };
+            var url = SyncDecisionHelper.PickCoverUrl(new DouyinCollectCate(), item);
+            Assert.Equal("v2", url);
+        }
+
+        [Fact]
+        public void PickCoverUrl_Cate_MixNullAndVideoCoverUrlsNull_TakesMusicCoverHd()
+        {
+            var item = new Aweme
+            {
+                MixInfo = null,
+                Video = new Video { Cover = new ImageInfo { UrlList = null } },
+                Music = new Music { CoverHd = CoverImg("mu1") },
+            };
+            var url = SyncDecisionHelper.PickCoverUrl(new DouyinCollectCate(), item);
+            Assert.Equal("mu1", url);
+        }
+
+        [Fact]
+        public void PickCoverUrl_NoCate_TakesVideoCoverFirst()
+        {
+            var item = new Aweme
+            {
+                Video = new Video { Cover = CoverImg("v1", "v2") },
+            };
+            var url = SyncDecisionHelper.PickCoverUrl(cate: null, item);
+            Assert.Equal("v1", url);
+        }
+
+        [Fact]
+        public void PickCoverUrl_NoCate_BlankVideoCover_FallsBackToImages()
+        {
+            var item = new Aweme
+            {
+                Video = new Video { Cover = CoverImg("") },
+                Images = new List<ImageItemInfo>
+                {
+                    new ImageItemInfo { DynamicVideo = new Video { Cover = CoverImg("img1") } },
+                },
+            };
+            var url = SyncDecisionHelper.PickCoverUrl(cate: null, item);
+            Assert.Equal("img1", url);
+        }
+
+        [Fact]
+        public void PickCoverUrl_NoCate_AllNull_ReturnsNull()
+        {
+            var item = new Aweme { Video = null, Images = null };
+            var url = SyncDecisionHelper.PickCoverUrl(cate: null, item);
+            Assert.Null(url);
+        }
+
+        // ---- BuildCoverPosterPath ----
+
+        // pin: current behavior, not aspirational
+
+        [Fact]
+        public void BuildCoverPosterPath_Mix_UsesPlainPosterJpg()
+        {
+            var path = SyncDecisionHelper.BuildCoverPosterPath(VideoTypeEnum.dy_mix, "/data/v/123.mp4");
+            var expected = Path.Combine(Path.GetDirectoryName("/data/v/123.mp4"), "poster.jpg");
+            Assert.Equal(expected, path);
+        }
+
+        [Fact]
+        public void BuildCoverPosterPath_Series_UsesPlainPosterJpg()
+        {
+            var path = SyncDecisionHelper.BuildCoverPosterPath(VideoTypeEnum.dy_series, "/data/v/123.mp4");
+            var expected = Path.Combine(Path.GetDirectoryName("/data/v/123.mp4"), "poster.jpg");
+            Assert.Equal(expected, path);
+        }
+
+        [Fact]
+        public void BuildCoverPosterPath_OtherType_UsesFileNamePrefixedPoster()
+        {
+            var path = SyncDecisionHelper.BuildCoverPosterPath(VideoTypeEnum.dy_collects, "/data/v/123.mp4");
+            var dir = Path.GetDirectoryName("/data/v/123.mp4");
+            var nameNoExt = Path.GetFileNameWithoutExtension("/data/v/123.mp4");
+            var expected = Path.Combine(dir, $"{nameNoExt}-poster.jpg");
+            Assert.Equal(expected, path);
+        }
     }
 }
