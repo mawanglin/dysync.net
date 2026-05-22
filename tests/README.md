@@ -21,7 +21,7 @@ projects target net8.0; drop it on a net8.0 SDK.) Filter a single class with
 |------|------|-------|
 | `DouyinFileNameHelper` | `DouyinFileNameHelperTests` | `SanitizeLinuxFileName` (illegal-char scrub, whitespace strip, folder mode, control chars), `KeepChineseLettersAndNumbers`, `RemoveNumberSuffix`, `LimitUnifiedCount` |
 | `Md5Util.Md5` | `PureHelperTests` | Standard RFC-1321 MD5 output |
-| `SyncDecisionHelper` | `SyncDecisionHelperTests` | `GetNextCursor` (Cursor→MaxCursor→`"0"`, null-safe), `IsAwemeValid` (3-level null guard), `GetVideoTags` (per-level pick, missing→null), `IsSyncLimitReached` (cate 30-cap vs `BatchCount` cap, `OnlySyncNew` passthrough, `dy_follows` `!FullSync`, mix/series short-circuit), `BuildVideoEntity` (纯字段映射 / cate 标题覆盖 / `OnlyImgOrOnlyMp3` / `DyUserId` 分支 / `AuthorAvatarUrl` 回落 / `FileSize` 零回落), `PickBestVideoBitRate` (encoder=265 优先 H.265 + 回退 H.264 / 默认或 ≠265 仅 H.264 / 空或 null `UrlList` 跳过), `BuildVideoFileName` (custom_collect Format vs mp4 兜底 / mix-series 数字 episode 的 S01E{D2} / 默认 AwemeId.mp4 / cate 非 custom_collect 走默认), `BuildVideoSaveFolderCandidates` (primary = SavePath/sanitized-subFolder / collisionResolved 追加 _{AwemeId} / 空 Desc 走 AwemeId 兜底 / 非法字符经 Sanitize), `PickCoverUrl` (cate 三级兜底 MixInfo→Video(Last)→Music / 非-cate Video(First)→Images / 全空→null), `BuildCoverPosterPath` (dy_mix·dy_series→poster.jpg / 其余→{名}-poster.jpg) |
+| `SyncDecisionHelper` | `SyncDecisionHelperTests` | `GetNextCursor` (Cursor→MaxCursor→`"0"`, null-safe), `IsAwemeValid` (3-level null guard), `GetVideoTags` (per-level pick, missing→null), `IsSyncLimitReached` (cate 30-cap vs `BatchCount` cap, `OnlySyncNew` passthrough, `dy_follows` `!FullSync`, mix/series short-circuit), `BuildVideoEntity` (纯字段映射 / cate 标题覆盖 / `OnlyImgOrOnlyMp3` / `DyUserId` 分支 / `AuthorAvatarUrl` 回落 / `FileSize` 零回落), `PickBestVideoBitRate` (encoder=265 优先 H.265 + 回退 H.264 / 默认或 ≠265 仅 H.264 / 空或 null `UrlList` 跳过), `BuildVideoFileName` (custom_collect Format vs mp4 兜底 / mix-series 数字 episode 的 S01E{D2} / 默认 AwemeId.mp4 / cate 非 custom_collect 走默认), `BuildVideoSaveFolderCandidates` (primary = SavePath/sanitized-subFolder / collisionResolved 追加 _{AwemeId} / 空 Desc 走 AwemeId 兜底 / 非法字符经 Sanitize), `PickCoverUrl` (cate 三级兜底 MixInfo→Video(Last)→Music / 非-cate Video(First)→Images / 全空→null), `BuildCoverPosterPath` (dy_mix·dy_series→poster.jpg / 其余→{名}-poster.jpg), `ResolveDuplicateVideoAction` (优先级去重判定：空表→默认 dy_favorite 最高 / 配置表→Sort 最小者最高 / 四层嵌套产出 SkipDownload·ReplaceExisting / 缺项 Sort 回退 int.MaxValue) |
 | `VideoTitleGenerator.Generate` | `PureHelperTests` | Placeholder substitution, char-filtering of title/author, unknown-token passthrough, empty-field placeholder, 60-char cap |
 | `DouyinVideoService.GetStatics` | `VideoStatsCharacterizationTests` | Full `VideoStaticsDto` snapshot: counts by type, distinct author/category, GB size formatting incl. the `<0.01` zero-substitution branch, **plus the `Categories` list (Tag1 grouping, empty→`其他`, desc order) and `Authors` list (Author grouping, desc order, last-row `Icon`/`UperId` semantics)** |
 | `DouyinVideoService.GetChartData` | `VideoStatsCharacterizationTests` | Per-day `SyncTime` grouping and per-type counts (Graphic = empty `FileHash`), **single-day and multi-day group ordering** |
@@ -50,16 +50,22 @@ CodeFirst (`TestDb`), i.e. the production data stack — not mocks.
   `PickCoverUrl`/`BuildCoverPosterPath` (两个 `DownVideoCover` 重载的纯逻辑
   ——封面 URL 选取 + 海报路径派生——已抽出并 pinned；其 `CloseNfo`/空白守卫、
   `File.Exists`/`DownloadAsync` I/O 编排仍在 job 薄壳内、未覆盖；cate 分支
-  对 `Video`/`Cover` 无空安全的 NRE 路径保留不测) — all pinned (see table
+  对 `Video`/`Cover` 无空安全的 NRE 路径保留不测),
+  `ResolveDuplicateVideoAction` (`AutoDistinct` 的四层嵌套优先级判定已抽出并
+  pinned；其 `config.AutoDistinct`/`File.Exists` 守卫、`JsonConvert` 反序列化、
+  `DeleteOldViedo`/`DeleteById` I/O、BRANCH 2 仍在 job 薄壳内、未覆盖；
+  `priorityLevels` 为 null 的 NRE 路径保留不测；薄壳 `DeleteOldViedo` 的
+  try/catch 归一化为本刀唯一行为偏差、不在测试覆盖内) — all pinned (see table
   above). Still uncovered:
   `ProcessSingleVideo`/`ProcessDynamicVideo`/`ProcessImageSetAndMergeToVideo`
-  orchestration bodies, `AutoDistinct`, `SaveVideos`, `DownAuthorAvatar`,
+  orchestration bodies, `SaveVideos`, `DownAuthorAvatar`,
   `CleanupFailedVideos`, `HandleSyncCompletion` — all retain HTTP / FS / DB
   coupling and will be characterized as further seams are extracted in
   follow-up plans.
-- **`AutoDistinct`** — private, instance-level, DB-coupled. Not directly
-  reachable. Its supporting pure helpers (above) are pinned; characterize
-  `AutoDistinct` itself only after it is extracted to a testable seam.
+- **`AutoDistinct` shell** — the priority 判定 is now extracted to
+  `SyncDecisionHelper.ResolveDuplicateVideoAction` and pinned. What remains
+  in `AutoDistinct` is a private, DB-coupled I/O shell (guards, JsonConvert,
+  DeleteOldViedo, DeleteById) — not directly reachable, not characterized.
 - **Frontend (`http.ts` interceptor, `account.ts`)** — no JS toolchain in this
   environment; out of scope for this .NET suite.
 
