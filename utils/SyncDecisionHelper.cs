@@ -241,5 +241,78 @@ namespace dy.net.utils
             var coverSavePath = Path.Combine(directoryPath, newFileName);
             return coverSavePath;
         }
+
+        /// <summary>
+        /// 从 DouyinBasicSyncJob.AutoDistinct 抽出的纯优先级去重判定（无 I/O）。
+        /// 行为逐字保留：priorityLevels 为空 → 默认最高优先级 {Id=1,Sort=1}（即 dy_favorite）；
+        /// 否则取 Sort 最小者为最高优先级。判定见方法体四层嵌套 if/else。
+        /// 抽象属性 VideoType 提升为 currentType 入参。
+        /// 注意 priorityLevels 为 null 时 .Any() 会抛 NRE（与原 priLevs.Any() 逐字一致）——
+        /// 既有行为，不加守卫。JsonConvert 反序列化、DeleteOldViedo/DeleteById 的 I/O 留在 job。
+        /// 由特征化测试 SyncDecisionHelperTests 锁定当前行为。
+        /// </summary>
+        public static DuplicateVideoAction ResolveDuplicateVideoAction(
+            VideoTypeEnum currentType,
+            VideoTypeEnum exitVideoType,
+            List<PriorityLevelDto> priorityLevels)
+        {
+            // 4. 处理优先级：获取「最高优先级」（Sort 越小优先级越高）
+            PriorityLevelDto maxPriority = null;
+            if (priorityLevels.Any())
+            {
+                // 前端已配置优先级：取 Sort 最小的（1最高）
+                maxPriority = priorityLevels.OrderBy(x => x.Sort).FirstOrDefault();
+            }
+            else
+            {
+                // 前端未配置：使用默认优先级（喜欢 > 收藏 > 关注）
+                maxPriority = new PriorityLevelDto { Id = 1, Sort = 1, Name = "喜欢的" }; // 默认「喜欢的视频」最高
+            }
+
+            // 5. 转换为当前上下文的视频类型
+            var maxPriorityType = (VideoTypeEnum)maxPriority.Id; // 配置的最高优先级类型
+
+            // 7. 优先级逻辑判断（核心）
+            if (currentType == maxPriorityType)
+            {
+                // 情况1：当前要下载的是「最高优先级」视频
+                if (exitVideoType == currentType)
+                {
+                    // 已存在同优先级视频 → 跳过下载（避免重复）
+                    return DuplicateVideoAction.SkipDownload;
+                }
+                else
+                {
+                    // 已存在「低优先级」视频 → 替换（删除旧文件，继续下载新的最高优先级视频）
+                    return DuplicateVideoAction.ReplaceExisting;
+                }
+            }
+            else
+            {
+                // 情况2：当前要下载的是「非最高优先级」视频
+                if (exitVideoType == maxPriorityType)
+                {
+                    // 已存在「最高优先级」视频 → 跳过（不替换最高优先级）
+                    return DuplicateVideoAction.SkipDownload;
+                }
+                else
+                {
+                    // 已存在「其他非最高优先级」视频 → 比较两者优先级
+                    var currentSort = priorityLevels.FirstOrDefault(x => x.Id == (int)currentType)?.Sort ?? int.MaxValue;
+                    var exitSort = priorityLevels.FirstOrDefault(x => x.Id == (int)exitVideoType)?.Sort ?? int.MaxValue;
+
+                    if (currentSort < exitSort)
+                    {
+                        // 当前类型优先级更高 → 替换旧视频
+                        return DuplicateVideoAction.ReplaceExisting;
+                    }
+                    else
+                    {
+                        // 当前类型优先级更低或相等 → 跳过
+                        return DuplicateVideoAction.SkipDownload;
+                    }
+                }
+            }
+        }
     }
 }

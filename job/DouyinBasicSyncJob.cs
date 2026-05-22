@@ -675,87 +675,20 @@ namespace dy.net.job
                             priLevs = JsonConvert.DeserializeObject<List<PriorityLevelDto>>(config.PriorityLevel);
                         }
 
-                        // 4. 处理优先级：获取「最高优先级」（Sort 越小优先级越高）
-                        PriorityLevelDto maxPriority = null;
-                        if (priLevs.Any())
+                        var action = SyncDecisionHelper.ResolveDuplicateVideoAction(VideoType, exitVideo.ViedoType, priLevs);
+                        if (action == DuplicateVideoAction.SkipDownload)
                         {
-                            // 前端已配置优先级：取 Sort 最小的（1最高）
-                            maxPriority = priLevs.OrderBy(x => x.Sort).FirstOrDefault();
-                        }
-                        else
-                        {
-                            // 前端未配置：使用默认优先级（喜欢 > 收藏 > 关注）
-                            maxPriority = new PriorityLevelDto { Id = 1, Sort = 1, Name = "喜欢的" }; // 默认「喜欢的视频」最高
+                            return false;
                         }
 
-                        // 5. 转换为当前上下文的视频类型
-                        var maxPriorityType = (VideoTypeEnum)maxPriority.Id; // 配置的最高优先级类型
-
-                        // 6. 获取已存在视频的类型（从数据库中 exitVideo 读取，需确保字段存在）
-                        var exitVideoType = exitVideo.ViedoType; // 假设数据库存储了 VideoType.GetVideoTypeDesc()（1/2/3）
-
-                        // 7. 优先级逻辑判断（核心）
-                        if (VideoType == maxPriorityType)
+                        // ReplaceExisting：删除旧的低优先级文件，继续下载（覆盖旧数据）
+                        try
                         {
-                            // 情况1：当前要下载的是「最高优先级」视频
-                            if (exitVideoType == VideoType)
-                            {
-                                // 已存在同优先级视频 → 跳过下载（避免重复）
-                                //Log.Debug($"[{VideoType.GetVideoTypeDesc()}]-视频-{exitVideo.AwemeId}-[{exitVideo.VideoTitle}]已存在（同最高优先级），跳过");
-                                return false;
-                            }
-                            else
-                            {
-                                // 已存在「低优先级」视频 → 替换（删除旧文件，继续下载新的最高优先级视频）
-                                //Log.Debug($"[{VideoType.GetVideoTypeDesc()}]-视频-{exitVideo.AwemeId}-[{exitVideo.VideoTitle}]已存在（低优先级：{exitVideoType.GetVideoTypeDesc()}），替换为最高优先级：{currentVideoType.GetVideoTypeDesc()}");
-
-                                // 删除旧的低优先级文件（可选：也可保留备份，根据需求调整）
-                                try
-                                {
-                                    //File.Delete(exitVideo.VideoSavePath);
-                                    DeleteOldViedo(exitVideo);
-                                    //Log.Debug($"已删除旧文件：{exitVideo.VideoSavePath}");
-                                }
-                                catch (Exception ex)
-                                {
-                                    Log.Error($"[{cookie.UserName}][{VideoType.GetDesc()}]-删除重复的文件[{exitVideo.VideoTitle}]失败：{ex.Message}", ex);
-                                    // 即使删除失败，仍继续下载（新文件会覆盖旧文件，或按路径规则重命名）
-                                }
-
-                                // 继续执行下载逻辑（覆盖旧数据）
-                            }
+                            DeleteOldViedo(exitVideo);
                         }
-                        else
+                        catch (Exception ex)
                         {
-                            // 情况2：当前要下载的是「非最高优先级」视频
-                            if (exitVideoType == maxPriorityType)
-                            {
-                                // 已存在「最高优先级」视频 → 跳过（不替换最高优先级）
-                                //Log.Debug($"[{VideoType.GetVideoTypeDesc()}]-视频-{exitVideo.AwemeId}-[{exitVideo.VideoTitle}]已存在最高优先级视频（{maxPriorityType}），当前类型（{currentVideoType.GetVideoTypeDesc()}）优先级低，跳过");
-                                return false;
-                            }
-                            else
-                            {
-                                // 已存在「其他非最高优先级」视频 → 比较两者优先级
-                                // 获取当前类型和已存在类型的 Sort 值
-                                var currentSort = priLevs.FirstOrDefault(x => x.Id == (int)VideoType)?.Sort ?? int.MaxValue;
-                                var exitSort = priLevs.FirstOrDefault(x => x.Id == (int)exitVideoType)?.Sort ?? int.MaxValue;
-
-                                if (currentSort < exitSort)
-                                {
-                                    // 当前类型优先级更高 → 替换旧视频
-                                    //Log.Debug($"[{VideoType.GetVideoTypeDesc()}]-视频-{exitVideo.AwemeId}-[{exitVideo.VideoTitle}]已存在低优先级视频（{exitVideoType.GetVideoTypeDesc()}），替换为当前优先级：{currentVideoType.GetVideoTypeDesc()}");
-                                    // 删除旧文件
-                                    DeleteOldViedo(exitVideo);
-                                    // 继续下载
-                                }
-                                else
-                                {
-                                    // 当前类型优先级更低或相等 → 跳过
-                                    //Log.Debug($"[{VideoType.GetVideoTypeDesc()}]-视频-{exitVideo.AwemeId}-[{exitVideo.VideoTitle}]已存在更高/同等优先级视频（{exitVideoType.GetVideoTypeDesc()}），当前类型（{currentVideoType.GetVideoTypeDesc()}）跳过");
-                                    return false;
-                                }
-                            }
+                            Log.Error($"[{cookie.UserName}][{VideoType.GetDesc()}]-删除重复的文件[{exitVideo.VideoTitle}]失败：{ex.Message}", ex);
                         }
                     }
                     else
@@ -767,7 +700,6 @@ namespace dy.net.job
                         else
                         {
                             //记录存在，但本地文件不存在，则继续下载。
-                            //Log.Debug($"[{VideoType.GetVideoTypeDesc()}]-视频-{exitVideo.AwemeId}记录存在，但本地文件缺失，删除记录，重新下载");
                             //删除原来的记录
                             await douyinVideoService.DeleteById(exitVideo.Id);
                         }
