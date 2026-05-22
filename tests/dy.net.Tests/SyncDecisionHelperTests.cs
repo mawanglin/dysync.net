@@ -806,5 +806,43 @@ namespace dy.net.Tests
                 VideoTypeEnum.dy_follows, VideoTypeEnum.dy_collects, Levels((1, 1), (2, 2)));
             Assert.Equal(DuplicateVideoAction.SkipDownload, action);
         }
+
+        // ---- PickAuthorAvatarUrl ----
+        // pin: current behavior, not aspirational
+
+        private static ImageInfo AvatarImg(params string[] urls)
+            => new ImageInfo { UrlList = urls.ToList() };
+
+        private static Aweme AwemeWithAvatars(ImageInfo larger, ImageInfo thumb)
+            => new Aweme { Author = new Author { AvatarLarger = larger, AvatarThumb = thumb } };
+
+        [Fact]
+        public void PickAuthorAvatarUrl_AvatarLargerPresent_TakesLargerFirst()
+        {
+            var item = AwemeWithAvatars(AvatarImg("L1", "L2"), AvatarImg("T1"));
+            Assert.Equal("L1", SyncDecisionHelper.PickAuthorAvatarUrl(item));
+        }
+
+        [Fact]
+        public void PickAuthorAvatarUrl_AvatarLargerNull_FallsBackToThumb()
+        {
+            var item = AwemeWithAvatars(null, AvatarImg("T1"));
+            Assert.Equal("T1", SyncDecisionHelper.PickAuthorAvatarUrl(item));
+        }
+
+        [Fact]
+        public void PickAuthorAvatarUrl_AvatarLargerEmptyUrlList_FallsBackToThumb()
+        {
+            // AvatarLarger present but UrlList empty → FirstOrDefault() is null → ?? falls through
+            var item = AwemeWithAvatars(AvatarImg(), AvatarImg("T1"));
+            Assert.Equal("T1", SyncDecisionHelper.PickAuthorAvatarUrl(item));
+        }
+
+        [Fact]
+        public void PickAuthorAvatarUrl_BothNull_ReturnsNull()
+        {
+            var item = AwemeWithAvatars(null, null);
+            Assert.Null(SyncDecisionHelper.PickAuthorAvatarUrl(item));
+        }
     }
 }
