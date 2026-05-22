@@ -53,7 +53,7 @@ CodeFirst (`TestDb`), i.e. the production data stack — not mocks.
   对 `Video`/`Cover` 无空安全的 NRE 路径保留不测),
   `ResolveDuplicateVideoAction` (`AutoDistinct` 的四层嵌套优先级判定已抽出并
   pinned；其 `config.AutoDistinct`/`File.Exists` 守卫、`JsonConvert` 反序列化、
-  `DeleteOldViedo`/`DeleteById` I/O、BRANCH 2 仍在 job 薄壳内、未覆盖；
+  `DeleteOldViedo`/`DeleteById` I/O、本地文件缺失分支（`OnlyImgOrOnlyMp3` 判定）仍在 job 薄壳内、未覆盖；
   `priorityLevels` 为 null 的 NRE 路径保留不测；薄壳 `DeleteOldViedo` 的
   try/catch 归一化为本刀唯一行为偏差、不在测试覆盖内) — all pinned (see table
   above). Still uncovered:
