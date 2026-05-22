@@ -327,5 +327,46 @@ namespace dy.net.utils
             // 优先获取高清头像
             return item.Author.AvatarLarger?.UrlList?.FirstOrDefault() ?? item.Author.AvatarThumb?.UrlList?.FirstOrDefault();
         }
+
+        /// <summary>
+        /// 从 DouyinBasicSyncJob.ProcessVideoList 抽出的纯动态视频 URL 构建逻辑（无 I/O）。
+        /// 行为逐字保留：遍历 item.Images → 每个 DynamicVideo.BitRate → 取 PlayAddr.UrlList
+        /// 中首个以 https://www.douyin.com/aweme/v1/play 打头的 URL，命中则构造
+        /// DouyinMergeVideoDto { Path, Height, Width } 入列；Images 为 null/空时返回空 list。
+        /// 调用方（job 薄壳）保留 config.DownDynamicVideo 开关，仅在开关开启时调用本方法。
+        /// PlayAddr.Height/Width 为非空 int，?? 1920 / ?? 1080 兜底为不可达死代码，逐字保留不删。
+        /// 由特征化测试 SyncDecisionHelperTests 锁定当前行为。
+        /// </summary>
+        public static List<DouyinMergeVideoDto> BuildDynamicVideoUrls(Aweme item)
+        {
+            List<DouyinMergeVideoDto> dynamicVideoUrls = new List<DouyinMergeVideoDto>();
+            // 当需要下载动态视频时，获取其他URL
+            if (item.Images != null && item.Images.Count > 0)
+            {
+                foreach (var img in item.Images)
+                {
+                    if (img.DynamicVideo?.BitRate?.Count > 0)
+                    {
+                        foreach (var btv in img.DynamicVideo.BitRate)
+                        {
+                            var targetUrl = btv.PlayAddr?.UrlList?.FirstOrDefault(x => x.StartsWith("https://www.douyin.com/aweme/v1/play"));
+                            if (targetUrl != null)
+                            {
+                                var height = btv.PlayAddr?.Height ?? 1920;
+                                var width = btv.PlayAddr?.Width ?? 1080;
+                                DouyinMergeVideoDto info = new DouyinMergeVideoDto
+                                {
+                                    Path = targetUrl,
+                                    Height = height,
+                                    Width = width
+                                };
+                                dynamicVideoUrls.Add(info);
+                            }
+                        }
+                    }
+                }
+            }
+            return dynamicVideoUrls;
+        }
     }
 }

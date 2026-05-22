@@ -546,31 +546,9 @@ namespace dy.net.job
                 {
                     //处理多个视频-组合的图文视频--类似动图。
                     List<DouyinMergeVideoDto> dynamicVideoUrls = new List<DouyinMergeVideoDto>();
-                    // 当需要下载动态视频时，获取其他URL
-                    if (config.DownDynamicVideo && item.Images != null && item.Images.Count > 0)
+                    if (config.DownDynamicVideo)
                     {
-                        foreach (var img in item.Images)
-                        {
-                            if (img.DynamicVideo?.BitRate?.Count > 0)
-                            {
-                                foreach (var btv in img.DynamicVideo.BitRate)
-                                {
-                                    var targetUrl = btv.PlayAddr?.UrlList?.FirstOrDefault(x => x.StartsWith("https://www.douyin.com/aweme/v1/play"));
-                                    if (targetUrl != null)
-                                    {
-                                        var height = btv.PlayAddr?.Height ?? 1920;
-                                        var width = btv.PlayAddr?.Width ?? 1080;
-                                        DouyinMergeVideoDto info = new DouyinMergeVideoDto
-                                        {
-                                            Path = targetUrl,
-                                            Height = height,
-                                            Width = width
-                                        };
-                                        dynamicVideoUrls.Add(info);
-                                    }
-                                }
-                            }
-                        }
+                        dynamicVideoUrls = SyncDecisionHelper.BuildDynamicVideoUrls(item);
                     }
 
                     // 处理核心逻辑
