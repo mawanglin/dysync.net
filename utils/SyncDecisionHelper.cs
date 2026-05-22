@@ -314,5 +314,18 @@ namespace dy.net.utils
                 }
             }
         }
+
+        /// <summary>
+        /// 从 DouyinBasicSyncJob.DownAuthorAvatar 抽出的纯头像 URL 选取逻辑（无 I/O）。
+        /// 行为逐字保留：优先高清 AvatarLarger，回落 AvatarThumb，各取 UrlList 首个。
+        /// 注意对 item.Author 无 ?. 空安全——原代码 Author==null 守卫先跑，调用方（job 薄壳）
+        /// 保留该守卫并负责只在 Author 非 null 时调用；逐字保留不补守卫。
+        /// 由特征化测试 SyncDecisionHelperTests 锁定当前行为。
+        /// </summary>
+        public static string PickAuthorAvatarUrl(Aweme item)
+        {
+            // 优先获取高清头像
+            return item.Author.AvatarLarger?.UrlList?.FirstOrDefault() ?? item.Author.AvatarThumb?.UrlList?.FirstOrDefault();
+        }
     }
 }

@@ -1122,8 +1122,7 @@ namespace dy.net.job
         {
             if (config.CloseNfo) return string.Empty;
             if (item.Author == null) return string.Empty;
-            // 优先获取高清头像
-            var avatarUrl = item.Author.AvatarLarger?.UrlList?.FirstOrDefault() ?? item.Author.AvatarThumb?.UrlList?.FirstOrDefault();
+            var avatarUrl = SyncDecisionHelper.PickAuthorAvatarUrl(item);
             if (string.IsNullOrWhiteSpace(avatarUrl)) return string.Empty;
 
             // 拼接头像保存路径
