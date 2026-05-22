@@ -731,5 +731,80 @@ namespace dy.net.Tests
             var expected = Path.Combine(dir, $"{nameNoExt}-poster.jpg");
             Assert.Equal(expected, path);
         }
+
+        // ---- ResolveDuplicateVideoAction ----
+        // pin: current behavior, not aspirational
+
+        private static List<PriorityLevelDto> Levels(params (int id, int sort)[] entries)
+            => entries.Select(e => new PriorityLevelDto { Id = e.id, Sort = e.sort }).ToList();
+
+        [Fact]
+        public void ResolveDuplicateVideoAction_EmptyLevels_CurrentFavoriteExitFavorite_Skips()
+        {
+            var action = SyncDecisionHelper.ResolveDuplicateVideoAction(
+                VideoTypeEnum.dy_favorite, VideoTypeEnum.dy_favorite, new List<PriorityLevelDto>());
+            Assert.Equal(DuplicateVideoAction.SkipDownload, action);
+        }
+
+        [Fact]
+        public void ResolveDuplicateVideoAction_EmptyLevels_CurrentFavoriteExitCollects_Replaces()
+        {
+            var action = SyncDecisionHelper.ResolveDuplicateVideoAction(
+                VideoTypeEnum.dy_favorite, VideoTypeEnum.dy_collects, new List<PriorityLevelDto>());
+            Assert.Equal(DuplicateVideoAction.ReplaceExisting, action);
+        }
+
+        [Fact]
+        public void ResolveDuplicateVideoAction_EmptyLevels_CurrentCollectsExitFavorite_Skips()
+        {
+            var action = SyncDecisionHelper.ResolveDuplicateVideoAction(
+                VideoTypeEnum.dy_collects, VideoTypeEnum.dy_favorite, new List<PriorityLevelDto>());
+            Assert.Equal(DuplicateVideoAction.SkipDownload, action);
+        }
+
+        [Fact]
+        public void ResolveDuplicateVideoAction_ConfiguredHighestIsCurrent_ExitLower_Replaces()
+        {
+            // maxPriority = Sort-min = {Id=3} → dy_follows; current == max, exit != current
+            var action = SyncDecisionHelper.ResolveDuplicateVideoAction(
+                VideoTypeEnum.dy_follows, VideoTypeEnum.dy_collects, Levels((3, 1), (2, 2)));
+            Assert.Equal(DuplicateVideoAction.ReplaceExisting, action);
+        }
+
+        [Fact]
+        public void ResolveDuplicateVideoAction_NeitherIsHighest_CurrentSortSmaller_Replaces()
+        {
+            // max = {Id=1}; current dy_collects Sort=2 < exit dy_follows Sort=3
+            var action = SyncDecisionHelper.ResolveDuplicateVideoAction(
+                VideoTypeEnum.dy_collects, VideoTypeEnum.dy_follows, Levels((1, 1), (2, 2), (3, 3)));
+            Assert.Equal(DuplicateVideoAction.ReplaceExisting, action);
+        }
+
+        [Fact]
+        public void ResolveDuplicateVideoAction_NeitherIsHighest_CurrentSortLarger_Skips()
+        {
+            // max = {Id=1}; current dy_follows Sort=3 >= exit dy_collects Sort=2
+            var action = SyncDecisionHelper.ResolveDuplicateVideoAction(
+                VideoTypeEnum.dy_follows, VideoTypeEnum.dy_collects, Levels((1, 1), (2, 2), (3, 3)));
+            Assert.Equal(DuplicateVideoAction.SkipDownload, action);
+        }
+
+        [Fact]
+        public void ResolveDuplicateVideoAction_NeitherIsHighest_EqualSort_Skips()
+        {
+            // max = {Id=1}; current Sort=5, exit Sort=5; 5 < 5 is false → skip
+            var action = SyncDecisionHelper.ResolveDuplicateVideoAction(
+                VideoTypeEnum.dy_follows, VideoTypeEnum.dy_collects, Levels((1, 1), (2, 5), (3, 5)));
+            Assert.Equal(DuplicateVideoAction.SkipDownload, action);
+        }
+
+        [Fact]
+        public void ResolveDuplicateVideoAction_CurrentTypeMissingFromList_FallsBackToMaxValueSort_Skips()
+        {
+            // max = {Id=1}; current dy_follows absent → currentSort = int.MaxValue >= exit Sort=2
+            var action = SyncDecisionHelper.ResolveDuplicateVideoAction(
+                VideoTypeEnum.dy_follows, VideoTypeEnum.dy_collects, Levels((1, 1), (2, 2)));
+            Assert.Equal(DuplicateVideoAction.SkipDownload, action);
+        }
     }
 }
