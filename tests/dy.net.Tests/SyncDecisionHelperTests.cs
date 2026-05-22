@@ -844,5 +844,112 @@ namespace dy.net.Tests
             var item = AwemeWithAvatars(null, null);
             Assert.Null(SyncDecisionHelper.PickAuthorAvatarUrl(item));
         }
+
+        // ---- BuildDynamicVideoUrls ----
+        // pin: current behavior, not aspirational
+
+        private const string PlayPrefix = "https://www.douyin.com/aweme/v1/play";
+
+        private static PlayAddr DynPlayAddr(int height, int width, params string[] urls)
+            => new PlayAddr { Height = height, Width = width, UrlList = urls.ToList() };
+
+        private static VideoBitRate DynBitRate(PlayAddr playAddr)
+            => new VideoBitRate { PlayAddr = playAddr };
+
+        private static Video DynVideo(params VideoBitRate[] bitRates)
+            => new Video { BitRate = bitRates.ToList() };
+
+        private static ImageItemInfo DynImage(Video dynamicVideo)
+            => new ImageItemInfo { DynamicVideo = dynamicVideo };
+
+        private static Aweme AwemeWithImages(params ImageItemInfo[] images)
+            => new Aweme { Images = images.ToList() };
+
+        [Fact]
+        public void BuildDynamicVideoUrls_ImagesNull_ReturnsEmptyList()
+        {
+            // Images == null → if-guard false → empty list (not null)
+            var result = SyncDecisionHelper.BuildDynamicVideoUrls(new Aweme { Images = null });
+            Assert.Empty(result);
+        }
+
+        [Fact]
+        public void BuildDynamicVideoUrls_ImagesEmpty_ReturnsEmptyList()
+        {
+            var result = SyncDecisionHelper.BuildDynamicVideoUrls(AwemeWithImages());
+            Assert.Empty(result);
+        }
+
+        [Fact]
+        public void BuildDynamicVideoUrls_DynamicVideoNull_ImageContributesNothing()
+        {
+            // DynamicVideo == null → ?.BitRate?.Count short-circuits → image skipped
+            var result = SyncDecisionHelper.BuildDynamicVideoUrls(
+                AwemeWithImages(DynImage(null)));
+            Assert.Empty(result);
+        }
+
+        [Fact]
+        public void BuildDynamicVideoUrls_BitRateEmpty_ImageContributesNothing()
+        {
+            // BitRate present but empty → Count > 0 false → image skipped
+            var result = SyncDecisionHelper.BuildDynamicVideoUrls(
+                AwemeWithImages(DynImage(DynVideo())));
+            Assert.Empty(result);
+        }
+
+        [Fact]
+        public void BuildDynamicVideoUrls_PlayAddrNull_BitRateContributesNothing()
+        {
+            // PlayAddr == null → btv.PlayAddr?.UrlList short-circuits → targetUrl null → skipped
+            var result = SyncDecisionHelper.BuildDynamicVideoUrls(
+                AwemeWithImages(DynImage(DynVideo(DynBitRate(null)))));
+            Assert.Empty(result);
+        }
+
+        [Fact]
+        public void BuildDynamicVideoUrls_MatchingUrl_BuildsDtoWithPathAndPlayAddrDimensions()
+        {
+            var url = PlayPrefix + "/abc";
+            var item = AwemeWithImages(DynImage(DynVideo(
+                DynBitRate(DynPlayAddr(1280, 720, url)))));
+            var result = SyncDecisionHelper.BuildDynamicVideoUrls(item);
+            var dto = Assert.Single(result);
+            Assert.Equal(url, dto.Path);
+            Assert.Equal(1280, dto.Height);
+            Assert.Equal(720, dto.Width);
+        }
+
+        [Fact]
+        public void BuildDynamicVideoUrls_UrlListMixed_PicksFirstPlayPrefixUrl()
+        {
+            // FirstOrDefault(predicate): non-prefix URL skipped, first matching URL taken
+            var match1 = PlayPrefix + "/1";
+            var match2 = PlayPrefix + "/2";
+            var item = AwemeWithImages(DynImage(DynVideo(
+                DynBitRate(DynPlayAddr(100, 100, "https://other.com/a", match1, match2)))));
+            var result = SyncDecisionHelper.BuildDynamicVideoUrls(item);
+            var dto = Assert.Single(result);
+            Assert.Equal(match1, dto.Path);
+        }
+
+        [Fact]
+        public void BuildDynamicVideoUrls_MultipleImagesAndBitRates_CollectsEachMatchInEncounterOrder()
+        {
+            var a = PlayPrefix + "/a";
+            var b = PlayPrefix + "/b";
+            var c = PlayPrefix + "/c";
+            var item = AwemeWithImages(
+                DynImage(DynVideo(
+                    DynBitRate(DynPlayAddr(10, 10, a)),
+                    DynBitRate(DynPlayAddr(20, 20, b)))),
+                DynImage(DynVideo(
+                    DynBitRate(DynPlayAddr(30, 30, c)))));
+            var result = SyncDecisionHelper.BuildDynamicVideoUrls(item);
+            Assert.Collection(result,
+                d => Assert.Equal(a, d.Path),
+                d => Assert.Equal(b, d.Path),
+                d => Assert.Equal(c, d.Path));
+        }
     }
 }
