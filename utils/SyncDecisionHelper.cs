@@ -386,5 +386,41 @@ namespace dy.net.utils
                 .Where(img => !string.IsNullOrWhiteSpace(img.Path))
                 .ToList();
         }
+
+        /// <summary>
+        /// 从 DouyinBasicSyncJob.SwitchOtherUrlAddressDown 抽出的纯候选 URL 收集逻辑（无 I/O）。
+        /// 行为逐字保留：遍历 item.Video.BitRate，跳过 null 元素与 PlayAddr/UrlList 为 null·空 的项，
+        /// 然后对每个 UrlList 中的 URL，与 excludeUrl 做 C# string == 比较（值相等、ordinal、区分大小写）；
+        /// 不等者按"BitRate 顺序 → 每 BitRate 内 UrlList 顺序"加入结果，跨 BitRate 的重复 URL 不去重。
+        /// 注意 helper 不守护 item.Video / item.Video.BitRate 为 null（原代码亦不守护）→ NRE 直读，由调用方保证。
+        /// 由特征化测试 SyncDecisionHelperTests 锁定当前行为。
+        /// </summary>
+        public static List<string> CollectAlternateVideoUrls(Aweme item, string excludeUrl)
+        {
+            var otherUrls = new List<string>();
+
+            foreach (var bit in item.Video.BitRate)
+            {
+                if (bit == null)
+                {
+                    continue;
+                }
+                var payUrls = bit.PlayAddr;
+
+                if (payUrls == null || payUrls.UrlList == null || payUrls.UrlList.Count == 0)
+                {
+                    continue;
+                }
+
+                foreach (var payurl in payUrls.UrlList)
+                {
+                    if (payurl == excludeUrl)//   排除最开始下载失败的视频地址
+                        continue;
+                    otherUrls.Add(payurl);
+                }
+            }
+
+            return otherUrls;
+        }
     }
 }

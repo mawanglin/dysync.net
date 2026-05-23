@@ -867,28 +867,7 @@ namespace dy.net.job
         private async Task<(bool flowControl, DouyinVideo value)> SwitchOtherUrlAddressDown(DouyinCookie cookie, Aweme item, string videoUrl, string savePath)
         {
             Log.Debug($"[ {VideoType.GetDesc()} ][ {item?.Author?.Nickname ?? ""} ]-视频[{DouyinFileNameHelper.SanitizeLinuxFileName(item.Desc, item.AwemeId)}],正在尝试切换其他地址再次重新下载...");
-            var otherUrls = new List<string>();
-
-            foreach (var bit in item.Video.BitRate)
-            {
-                if (bit == null)
-                {
-                    continue;
-                }
-                var payUrls = bit.PlayAddr;
-
-                if (payUrls == null || payUrls.UrlList == null || payUrls.UrlList.Count == 0)
-                {
-                    continue;
-                }
-
-                foreach (var payurl in payUrls.UrlList)
-                {
-                    if (payurl == videoUrl)//   排除最开始下载失败的视频地址
-                        continue;
-                    otherUrls.Add(payurl);
-                }
-            }
+            var otherUrls = SyncDecisionHelper.CollectAlternateVideoUrls(item, videoUrl);
 
             if (otherUrls.Count > 0)
             {
