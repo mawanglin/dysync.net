@@ -951,5 +951,93 @@ namespace dy.net.Tests
                 d => Assert.Equal(b, d.Path),
                 d => Assert.Equal(c, d.Path));
         }
+
+        // ---- BuildImageUrls ----
+        // pin: current behavior, not aspirational
+
+        private static ImageItemInfo ImageUrlItem(int height, int width, params string[] urls)
+            => new ImageItemInfo { Height = height, Width = width, UrlList = urls.ToList() };
+
+        private static Aweme AwemeWithImageItems(params ImageItemInfo[] images)
+            => new Aweme { Images = images.ToList() };
+
+        [Fact]
+        public void BuildImageUrls_ImagesNull_ReturnsNull()
+        {
+            // item.Images == null → ?. short-circuits → returns null (NOT an empty list)
+            var result = SyncDecisionHelper.BuildImageUrls(new Aweme { Images = null });
+            Assert.Null(result);
+        }
+
+        [Fact]
+        public void BuildImageUrls_ImagesEmpty_ReturnsEmptyList()
+        {
+            // item.Images == [] → chain runs → empty (non-null) list
+            var result = SyncDecisionHelper.BuildImageUrls(AwemeWithImageItems());
+            Assert.Empty(result);
+        }
+
+        [Fact]
+        public void BuildImageUrls_UrlListNull_ImageFilteredOut()
+        {
+            // UrlList == null → first .Where(UrlList != null) drops the image
+            var item = AwemeWithImageItems(new ImageItemInfo { Height = 10, Width = 10, UrlList = null });
+            var result = SyncDecisionHelper.BuildImageUrls(item);
+            Assert.Empty(result);
+        }
+
+        [Fact]
+        public void BuildImageUrls_UrlListEmpty_ImageFilteredOut()
+        {
+            // UrlList == [] → first .Where(UrlList.Any()) drops the image
+            var item = AwemeWithImageItems(ImageUrlItem(10, 10));
+            var result = SyncDecisionHelper.BuildImageUrls(item);
+            Assert.Empty(result);
+        }
+
+        [Fact]
+        public void BuildImageUrls_ValidImage_BuildsDtoWithFirstUrlAndDimensions()
+        {
+            var item = AwemeWithImageItems(ImageUrlItem(1920, 1080, "u1"));
+            var result = SyncDecisionHelper.BuildImageUrls(item);
+            var dto = Assert.Single(result);
+            Assert.Equal("u1", dto.Path);
+            Assert.Equal(1920, dto.Height);
+            Assert.Equal(1080, dto.Width);
+        }
+
+        [Fact]
+        public void BuildImageUrls_MultipleUrls_TakesFirstUrl()
+        {
+            // .Select takes UrlList.FirstOrDefault()
+            var item = AwemeWithImageItems(ImageUrlItem(10, 10, "u1", "u2"));
+            var result = SyncDecisionHelper.BuildImageUrls(item);
+            var dto = Assert.Single(result);
+            Assert.Equal("u1", dto.Path);
+        }
+
+        [Fact]
+        public void BuildImageUrls_FirstUrlBlank_ImageFilteredOut()
+        {
+            // first URL is whitespace → Path is blank → second .Where drops the image
+            // even though a valid second URL exists (only the first URL is ever considered)
+            var item = AwemeWithImageItems(ImageUrlItem(10, 10, "   ", "u2"));
+            var result = SyncDecisionHelper.BuildImageUrls(item);
+            Assert.Empty(result);
+        }
+
+        [Fact]
+        public void BuildImageUrls_MultipleImagesMixed_KeepsOnlyValidInEncounterOrder()
+        {
+            var item = AwemeWithImageItems(
+                ImageUrlItem(1, 1, "valid1"),
+                new ImageItemInfo { Height = 2, Width = 2, UrlList = null },
+                ImageUrlItem(3, 3, "   ", "x"),
+                ImageUrlItem(4, 4, "valid2"));
+            var result = SyncDecisionHelper.BuildImageUrls(item);
+            Assert.Collection(result,
+                d => Assert.Equal("valid1", d.Path),
+                d => Assert.Equal("valid2", d.Path));
+        }
     }
 }
