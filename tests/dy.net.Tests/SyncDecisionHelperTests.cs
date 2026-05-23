@@ -1039,5 +1039,105 @@ namespace dy.net.Tests
                 d => Assert.Equal("valid1", d.Path),
                 d => Assert.Equal("valid2", d.Path));
         }
+
+        // ---- CollectAlternateVideoUrls ----
+        // pin: current behavior, not aspirational
+
+        private static VideoBitRate AltBitRate(params string[] urls)
+            => new VideoBitRate { PlayAddr = new PlayAddr { UrlList = urls.ToList() } };
+
+        private static Aweme AwemeWithBitRates(params VideoBitRate[] bits)
+            => new Aweme { Video = new Video { BitRate = bits.ToList() } };
+
+        [Fact]
+        public void CollectAlternateVideoUrls_BitRateEmpty_ReturnsEmptyList()
+        {
+            // empty BitRate → outer foreach runs 0 times → empty non-null list
+            var item = AwemeWithBitRates();
+            var result = SyncDecisionHelper.CollectAlternateVideoUrls(item, "any");
+            Assert.Empty(result);
+        }
+
+        [Fact]
+        public void CollectAlternateVideoUrls_BitRateContainsNull_SkipsNullEntries()
+        {
+            // bit == null → first guard continues; the valid bit's "u1" is still collected
+            var item = AwemeWithBitRates((VideoBitRate)null, AltBitRate("u1"));
+            var result = SyncDecisionHelper.CollectAlternateVideoUrls(item, "exclude-me");
+            Assert.Equal(new[] { "u1" }, result);
+        }
+
+        [Fact]
+        public void CollectAlternateVideoUrls_PlayAddrNull_SkipsBitRate()
+        {
+            // payUrls == null → compound guard arm 1 → BitRate skipped
+            var item = AwemeWithBitRates(
+                new VideoBitRate { PlayAddr = null },
+                AltBitRate("u1"));
+            var result = SyncDecisionHelper.CollectAlternateVideoUrls(item, "exclude-me");
+            Assert.Equal(new[] { "u1" }, result);
+        }
+
+        [Fact]
+        public void CollectAlternateVideoUrls_UrlListNull_SkipsBitRate()
+        {
+            // payUrls.UrlList == null → compound guard arm 2 → BitRate skipped
+            var item = AwemeWithBitRates(
+                new VideoBitRate { PlayAddr = new PlayAddr { UrlList = null } },
+                AltBitRate("u1"));
+            var result = SyncDecisionHelper.CollectAlternateVideoUrls(item, "exclude-me");
+            Assert.Equal(new[] { "u1" }, result);
+        }
+
+        [Fact]
+        public void CollectAlternateVideoUrls_UrlListEmpty_SkipsBitRate()
+        {
+            // payUrls.UrlList.Count == 0 → compound guard arm 3 → BitRate skipped
+            var item = AwemeWithBitRates(AltBitRate(), AltBitRate("u1"));
+            var result = SyncDecisionHelper.CollectAlternateVideoUrls(item, "exclude-me");
+            Assert.Equal(new[] { "u1" }, result);
+        }
+
+        [Fact]
+        public void CollectAlternateVideoUrls_MatchesExcludeUrl_Excluded()
+        {
+            // payurl == excludeUrl (C# string == is ordinal value equality) → skip;
+            // the other URL is kept.
+            var item = AwemeWithBitRates(AltBitRate("u1", "u2"));
+            var result = SyncDecisionHelper.CollectAlternateVideoUrls(item, "u1");
+            Assert.Equal(new[] { "u2" }, result);
+        }
+
+        [Fact]
+        public void CollectAlternateVideoUrls_DiffersOnlyInCase_NotExcluded()
+        {
+            // payurl differs from excludeUrl only by case → C# string == is case-sensitive
+            // ordinal, so the URL is NOT excluded — "UrlA" stays in the result even though
+            // excludeUrl is "urla".
+            var item = AwemeWithBitRates(AltBitRate("UrlA"));
+            var result = SyncDecisionHelper.CollectAlternateVideoUrls(item, "urla");
+            Assert.Equal(new[] { "UrlA" }, result);
+        }
+
+        [Fact]
+        public void CollectAlternateVideoUrls_DuplicateUrlsAcrossBitRates_NotDeduplicated()
+        {
+            // Two BitRates contain the same URL; neither equals excludeUrl → both copies kept.
+            var item = AwemeWithBitRates(AltBitRate("u1"), AltBitRate("u1"));
+            var result = SyncDecisionHelper.CollectAlternateVideoUrls(item, "exclude-me");
+            Assert.Equal(new[] { "u1", "u1" }, result);
+        }
+
+        [Fact]
+        public void CollectAlternateVideoUrls_MultipleBitRatesAndUrls_PreservesEncounterOrder()
+        {
+            // Outer BitRate order × inner UrlList order: b1.[a, b, skip] then b2.[c, d]
+            // → result is [a, b, c, d] (the mid-stream "skip" matches excludeUrl and is dropped).
+            var item = AwemeWithBitRates(
+                AltBitRate("a", "b", "skip"),
+                AltBitRate("c", "d"));
+            var result = SyncDecisionHelper.CollectAlternateVideoUrls(item, "skip");
+            Assert.Equal(new[] { "a", "b", "c", "d" }, result);
+        }
     }
 }
