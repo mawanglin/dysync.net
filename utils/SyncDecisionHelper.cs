@@ -368,5 +368,23 @@ namespace dy.net.utils
             }
             return dynamicVideoUrls;
         }
+
+        /// <summary>
+        /// 从 DouyinBasicSyncJob.ProcessImageSetAndMergeToVideo 抽出的纯图片 URL 提取逻辑（无 I/O）。
+        /// 行为逐字保留：遍历 item.Images，保留 UrlList 非空者，取每张图 UrlList 首个 URL 与宽高
+        /// 构造 DouyinMergeVideoDto，再滤掉 Path 为空白者。
+        /// 注意 item.Images 为 null 时 ?. 短路 → 返回 null（非空 list），与 BuildDynamicVideoUrls 不同；
+        /// 调用方守卫同时吃 null 与空 list。只取每张图 UrlList 首个 URL，首个为空白则整张图被丢弃。
+        /// 由特征化测试 SyncDecisionHelperTests 锁定当前行为。
+        /// </summary>
+        public static List<DouyinMergeVideoDto> BuildImageUrls(Aweme item)
+        {
+            // 提取图片URL列表
+            return item.Images?
+                .Where(img => img.UrlList != null && img.UrlList.Any())
+                .Select(img => new DouyinMergeVideoDto { Path = img.UrlList.FirstOrDefault(), Height = img.Height, Width = img.Width })
+                .Where(img => !string.IsNullOrWhiteSpace(img.Path))
+                .ToList();
+        }
     }
 }

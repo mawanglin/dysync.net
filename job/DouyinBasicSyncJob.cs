@@ -926,12 +926,7 @@ namespace dy.net.job
         {
             try
             {
-                // 提取图片URL列表
-                List<DouyinMergeVideoDto> imageUrls = item.Images?
-                .Where(img => img.UrlList != null && img.UrlList.Any())
-                .Select(img => new DouyinMergeVideoDto { Path = img.UrlList.FirstOrDefault(), Height = img.Height, Width = img.Width })
-                .Where(img => !string.IsNullOrWhiteSpace(img.Path))
-                .ToList();
+                List<DouyinMergeVideoDto> imageUrls = SyncDecisionHelper.BuildImageUrls(item);
 
                 // 如果没有图片，返回null
                 if (imageUrls == null || !imageUrls.Any())
