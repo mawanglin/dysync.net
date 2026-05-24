@@ -422,5 +422,23 @@ namespace dy.net.utils
 
             return otherUrls;
         }
+
+        /// <summary>
+        /// 从 DouyinBasicSyncJob.ProcessImageSetAndMergeToVideo 抽出的纯合成视频封面 URL 选取（无 I/O）。
+        /// 与第六刀 PickCoverUrl 互为兄弟：单视频/动态视频 cover 用 PickCoverUrl，合成视频 cover 用本方法。
+        /// 分支条件 cate is not null &amp;&amp; cate.CateType != dy_custom_collect → cate 分支
+        /// （兜底链 MixInfo → imageUrls → Music，全 ?. 安全；任一段 null/空 list 触发下一段）；
+        /// 否则（cate 为 null 或 cate.CateType == dy_custom_collect）→ 非-cate 分支
+        /// （只取 imageUrls.FirstOrDefault()?.Path，不查 MixInfo、不查 Music）。
+        /// imageUrls 在生产调用方已由 `if(imageUrls==null||!Any())` 守护非空，但 helper 契约
+        /// 仍以 FirstOrDefault()?.Path 防御性处理空 list（返回 null）。
+        /// 由特征化测试 SyncDecisionHelperTests 锁定当前行为。
+        /// </summary>
+        public static string PickMergeVideoCoverUrl(DouyinCollectCate cate, Aweme item, List<DouyinMergeVideoDto> imageUrls)
+        {
+            return cate is not null && cate.CateType != VideoTypeEnum.dy_custom_collect
+                ? (item.MixInfo?.CoverUrl?.UrlList?.FirstOrDefault() ?? imageUrls.FirstOrDefault()?.Path ?? item.Music?.CoverHd?.UrlList?.FirstOrDefault())
+                : imageUrls.FirstOrDefault()?.Path;
+        }
     }
 }

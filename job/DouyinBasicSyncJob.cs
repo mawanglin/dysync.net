@@ -982,9 +982,7 @@ namespace dy.net.job
                     savePath = "";
                 }
 
-                var coverUrl = cate is not null && cate.CateType != VideoTypeEnum.dy_custom_collect
-              ? (item.MixInfo?.CoverUrl?.UrlList?.FirstOrDefault() ?? imageUrls.FirstOrDefault()?.Path ?? item.Music?.CoverHd?.UrlList?.FirstOrDefault())
-              : imageUrls.FirstOrDefault()?.Path;
+                var coverUrl = SyncDecisionHelper.PickMergeVideoCoverUrl(cate, item, imageUrls);
 
                 // 下载作者头像
                 var avatarSavePath = await DownAuthorAvatar(cookie, item, config);
