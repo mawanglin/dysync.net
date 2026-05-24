@@ -1139,5 +1139,139 @@ namespace dy.net.Tests
             var result = SyncDecisionHelper.CollectAlternateVideoUrls(item, "skip");
             Assert.Equal(new[] { "a", "b", "c", "d" }, result);
         }
+
+        // ---- PickMergeVideoCoverUrl ----
+        // pin: current behavior, not aspirational
+
+        // Reuses existing section-local helpers:
+        //   CoverImg(params string[] urls) → ImageInfo (defined in PickCoverUrl section)
+        //   Cate(VideoTypeEnum cateType)   → DouyinCollectCate (defined in BuildVideoFileName section)
+        // Adds one new helper:
+
+        private static DouyinMergeVideoDto MergeDto(string path)
+            => new DouyinMergeVideoDto { Path = path };
+
+        [Fact]
+        public void PickMergeVideoCoverUrl_CateNull_UsesNonCateBranch_ReturnsFirstImageUrlPath()
+        {
+            // cate == null → non-cate branch → reads only imageUrls (MixInfo/Music ignored even if present)
+            var imageUrls = new List<DouyinMergeVideoDto> { MergeDto("img1"), MergeDto("img2") };
+            var item = new Aweme();
+            var result = SyncDecisionHelper.PickMergeVideoCoverUrl(cate: null, item, imageUrls);
+            Assert.Equal("img1", result);
+        }
+
+        [Fact]
+        public void PickMergeVideoCoverUrl_CateCustomCollect_UsesNonCateBranch_ReturnsFirstImageUrlPath()
+        {
+            // cate.CateType == dy_custom_collect → still non-cate branch (the explicit carve-out)
+            // MixInfo/Music present but MUST be ignored.
+            var imageUrls = new List<DouyinMergeVideoDto> { MergeDto("img1") };
+            var item = new Aweme
+            {
+                MixInfo = new MixInfo { CoverUrl = CoverImg("mix1") },
+                Music = new Music { CoverHd = CoverImg("mu1") },
+            };
+            var result = SyncDecisionHelper.PickMergeVideoCoverUrl(Cate(VideoTypeEnum.dy_custom_collect), item, imageUrls);
+            Assert.Equal("img1", result);
+        }
+
+        [Fact]
+        public void PickMergeVideoCoverUrl_CateNonCustomCollect_MixInfoPresent_PrefersMixInfo()
+        {
+            // cate-branch arm 1: MixInfo.CoverUrl.UrlList[0] wins; imageUrls/Music ignored.
+            var imageUrls = new List<DouyinMergeVideoDto> { MergeDto("img1") };
+            var item = new Aweme
+            {
+                MixInfo = new MixInfo { CoverUrl = CoverImg("mix1") },
+                Music = new Music { CoverHd = CoverImg("mu1") },
+            };
+            var result = SyncDecisionHelper.PickMergeVideoCoverUrl(Cate(VideoTypeEnum.dy_mix), item, imageUrls);
+            Assert.Equal("mix1", result);
+        }
+
+        [Fact]
+        public void PickMergeVideoCoverUrl_CateNonCustomCollect_MixInfoNull_FallsBackToImageUrls()
+        {
+            // cate-branch arm 2: MixInfo == null → ?? imageUrls; Music NOT consulted because imageUrls wins first.
+            var imageUrls = new List<DouyinMergeVideoDto> { MergeDto("img1") };
+            var item = new Aweme
+            {
+                MixInfo = null,
+                Music = new Music { CoverHd = CoverImg("mu1") },
+            };
+            var result = SyncDecisionHelper.PickMergeVideoCoverUrl(Cate(VideoTypeEnum.dy_mix), item, imageUrls);
+            Assert.Equal("img1", result);
+        }
+
+        [Fact]
+        public void PickMergeVideoCoverUrl_CateNonCustomCollect_MixInfoUrlListEmpty_FallsBackToImageUrls()
+        {
+            // cate-branch arm 2 edge: chain non-null all the way to UrlList, but UrlList empty →
+            // FirstOrDefault() returns null → ?? imageUrls.
+            var imageUrls = new List<DouyinMergeVideoDto> { MergeDto("img1") };
+            var item = new Aweme
+            {
+                MixInfo = new MixInfo { CoverUrl = CoverImg() },
+                Music = new Music { CoverHd = CoverImg("mu1") },
+            };
+            var result = SyncDecisionHelper.PickMergeVideoCoverUrl(Cate(VideoTypeEnum.dy_mix), item, imageUrls);
+            Assert.Equal("img1", result);
+        }
+
+        [Fact]
+        public void PickMergeVideoCoverUrl_CateNonCustomCollect_MixInfoAndImageUrlsEmpty_FallsBackToMusic()
+        {
+            // cate-branch arm 3: MixInfo null AND imageUrls empty → Music.CoverHd wins.
+            var imageUrls = new List<DouyinMergeVideoDto>();
+            var item = new Aweme
+            {
+                MixInfo = null,
+                Music = new Music { CoverHd = CoverImg("mu1") },
+            };
+            var result = SyncDecisionHelper.PickMergeVideoCoverUrl(Cate(VideoTypeEnum.dy_mix), item, imageUrls);
+            Assert.Equal("mu1", result);
+        }
+
+        [Fact]
+        public void PickMergeVideoCoverUrl_CateNonCustomCollect_AllSourcesNull_ReturnsNull()
+        {
+            // cate-branch all 3 sources unavailable → final null.
+            var imageUrls = new List<DouyinMergeVideoDto>();
+            var item = new Aweme { MixInfo = null, Music = null };
+            var result = SyncDecisionHelper.PickMergeVideoCoverUrl(Cate(VideoTypeEnum.dy_mix), item, imageUrls);
+            Assert.Null(result);
+        }
+
+        [Fact]
+        public void PickMergeVideoCoverUrl_CateNull_EmptyImageUrls_ReturnsNull()
+        {
+            // non-cate branch with empty imageUrls → null (defensive contract; production
+            // caller guards at :911 but the helper handles it cleanly via FirstOrDefault()?.Path).
+            // MixInfo/Music present but ignored because non-cate branch never consults them.
+            var imageUrls = new List<DouyinMergeVideoDto>();
+            var item = new Aweme
+            {
+                MixInfo = new MixInfo { CoverUrl = CoverImg("mix1") },
+                Music = new Music { CoverHd = CoverImg("mu1") },
+            };
+            var result = SyncDecisionHelper.PickMergeVideoCoverUrl(cate: null, item, imageUrls);
+            Assert.Null(result);
+        }
+
+        [Fact]
+        public void PickMergeVideoCoverUrl_CateNonCustomCollect_ImageUrlsHasMultiple_PrefersFirstNotMusic()
+        {
+            // FirstOrDefault() returns imageUrls[0], NOT a later element; and Music is NOT consulted
+            // because imageUrls is non-empty in the ?? chain.
+            var imageUrls = new List<DouyinMergeVideoDto> { MergeDto("first"), MergeDto("second") };
+            var item = new Aweme
+            {
+                MixInfo = null,
+                Music = new Music { CoverHd = CoverImg("mu1") },
+            };
+            var result = SyncDecisionHelper.PickMergeVideoCoverUrl(Cate(VideoTypeEnum.dy_mix), item, imageUrls);
+            Assert.Equal("first", result);
+        }
     }
 }
