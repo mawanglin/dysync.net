@@ -11,7 +11,24 @@ namespace dy.net.repository
         public DouyinCookieRepository(ISqlSugarClient db) : base(db)
         {
         }
-
+        public async Task<bool> FastResetCookie(string id, string cookie)
+        {
+            if (!string.IsNullOrWhiteSpace(id))
+            {
+                var result = await Db.Updateable<DouyinCookie>()
+                .SetColumns(it => it.Cookies == cookie)
+                .Where(it => it.Id == id)
+                .ExecuteCommandAsync();
+                return result > 0;
+            }
+            else
+            {
+                var result = await Db.Updateable<DouyinCookie>()
+              .SetColumns(it => it.Cookies == cookie)
+              .ExecuteCommandAsync();
+                return result > 0;
+            }
+        }
         public async Task<List<DouyinCookie>> GetAllCookiesAsync(Expression<Func<DouyinCookie, bool>> whereExpression = null)
         {
             // 1. 初始化查询：先加固定条件 Status == 1

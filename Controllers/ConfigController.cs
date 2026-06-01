@@ -152,6 +152,38 @@ namespace dy.net.Controllers
 
 
         /// <summary>
+        /// 配合工具自动设置cookie
+        /// </summary>
+        /// <param name="dto"></param>
+        /// <returns></returns>
+        [HttpPost("FastResetCookie")]
+        [AllowAnonymous]
+        public async Task<IActionResult> FastResetCookie([FromBody] DouyinCookieResetDto dto)
+        {
+            var cookieValid = await httpClientService.CheckCookie(new DouyinCookie { Cookies = dto.cookie });
+            if (!cookieValid)
+                return ApiResult.Fail("Cookie无效或已过期，请按照文档提示重新获取有效Cookie，不要使用插件获取cookie");
+            var result = await dyCookieService.FastResetCookie(dto.id, dto.cookie);
+         
+            return result ? ApiResult.Success() : ApiResult.Fail("cookie设置失败");
+        }
+
+        /// <summary>
+        /// 配合工具自动设置cookie,获取当前设置的所有Cookie
+        /// </summary>
+        /// <returns></returns>
+        [AllowAnonymous]
+        [HttpGet("Cookies")]
+        public async Task<IActionResult> GetAllCookies()
+        {
+            var cookies = await dyCookieService.GetAllAsync();
+            if (cookies != null)
+                return ApiResult.Success(cookies.Select(x => new { id= x.Id,name= x.UserName, status=x.StatusMsg }));
+            return ApiResult.Success();
+        }
+
+
+        /// <summary>
         /// 非docker初始化
         /// </summary>
         [HttpPost("deskinit")]

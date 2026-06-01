@@ -97,6 +97,7 @@ namespace dy.net.service
                     if (model == null)
                         Log.Error($"SyncCollectVideos fail, data is null");
                     return model;
+                    
                 }
                 else
                 {

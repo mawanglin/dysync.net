@@ -42,6 +42,19 @@ namespace dy.net.service
         {
             return await _cookieRepository.InsertAsync(dyUserCookies);
         }
+
+        public async Task<bool> FastResetCookie(string id,string cookie)
+        {
+            var d= await _cookieRepository.FastResetCookie(id, cookie);
+            if (d)
+            {
+                var cookies =await _cookieRepository.GetByIdAsync(id);
+                cookies.StatusCode = 0;
+                cookies.StatusMsg = "正常";
+                await _cookieRepository.UpdateAsync(cookies);
+            }
+            return d;
+        }
         public async Task<bool> Switch(DouyinCookieSwitchDto dto)
         {
             return await _cookieRepository.SwitchAsync(dto);
