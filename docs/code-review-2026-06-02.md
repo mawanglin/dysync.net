@@ -60,7 +60,20 @@
 
 ---
 
+## 附录：合并 master 后的工具端点加固（2026-06-02）
+
+复审后并入 master 的「重置 cookie 工具」（提交 `94c3d8b`），其新增两个 `[AllowAnonymous]` 端点构成新匿名面：
+
+- `GET /api/config/Cookies`（`GetAllCookies`）：匿名列出所有 cookie 的 id/name/status。
+- `POST /api/config/FastResetCookie`：匿名按 id 覆盖任意 cookie。
+
+🔴→✅ **已加固**（提交 `2904e3b`）：客户端 `dy.cookie.exe` 经 `strings` 证实为无 token 的 Go/chromedp 二进制（走 LAN），加鉴权/token 会破坏工具，故改用**来源门控**——新增纯函数 `utils/NetworkGuard.IsPrivateOrLoopback`，两端点非内网/本机来源返回 403，保留 `[AllowAnonymous]` 不破坏 LAN 工具。`NetworkGuardTests` 26 例覆盖。
+
+⚠️ **残留**：反代未配 forwarded-headers 时按代理私网 IP 放行，需代理层限制；LAN 内攻击者仍在范围内（同上游设计）。
+
+---
+
 ## 结论
 
-- **CRITICAL 闭环**：10/10 解决，本轮 3 项均经 spec→改→测试→提交，126 golden-master 全绿。
-- **下一步建议**：(1) 前端 `logged` 默认值与 `http.ts` 错误吞没（先解耦登录契约）；(2) 继续上帝类拆分；(3) 若安全要求提高，为 #1 加服务端硬门控。
+- **CRITICAL 闭环**：10/10 解决，本轮 3 项均经 spec→改→测试→提交。合并 master 后工具端点亦已来源门控加固。golden-master 152 全绿。
+- **下一步建议**：(1) 前端 `logged` 默认值与 `http.ts` 错误吞没（先解耦登录契约）；(2) 继续上帝类拆分；(3) 若安全要求提高，为 #1 加服务端硬门控、为工具端点加 token。
