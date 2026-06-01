@@ -20,6 +20,8 @@ export type TokenResult = {
   expires: number;
   code: number,
   erro: string,
+  // 默认凭据首登时为 true：前端据此提示立即修改默认密码（review #1）。
+  mustChangePwd?: boolean,
 };
 export const useAccountStore = defineStore('account', {
   state() {
@@ -28,7 +30,9 @@ export const useAccountStore = defineStore('account', {
       permissions: [] as string[],
       role: '',
       logged: true,
-      logged2: false
+      logged2: false,
+      // 强制首登改密标记（review #1）：登录响应回传，改密并重登后清零。
+      mustChangePwd: false
     };
   },
   actions: {
@@ -39,6 +43,7 @@ export const useAccountStore = defineStore('account', {
           if (response.code === 200 && response.data.code === 0) {
             this.logged = true;
             this.logged2 = true
+            this.mustChangePwd = response.data.mustChangePwd === true;
             // console.log(response)
             http.setAuthorization(`Bearer ${response.data.token}`, response.data.expires);
             // await useMenuStore().getMenuList();

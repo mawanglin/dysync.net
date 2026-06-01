@@ -19,7 +19,8 @@
 </template>
 
 <script lang="ts" setup>
-import { reactive, ref, computed, onMounted } from 'vue';
+import { reactive, ref, computed, onMounted, watch, nextTick } from 'vue';
+import { message } from 'ant-design-vue';
 import { useRouter } from 'vue-router';
 import { useAccountStore, useMenuStore, useSettingStore, storeToRefs, useApiStore } from '@/store';
 import avatar from '@/assets/avatar.png';
@@ -38,6 +39,20 @@ const open = ref(false);
 
 const showSetting = ref(false);
 const router = useRouter();
+
+// review #1：默认凭据首登后强制提示改密——登录响应回传 mustChangePwd 为 true 时，
+// 提示并打开个人设置抽屉（默认停在改密 tab）。软提示，抽屉可关闭；标记由后端在
+// 改密成功后清除，重新登录刷新。
+const accountStore = useAccountStore();
+watch(
+  () => accountStore.mustChangePwd,
+  (must) => {
+    if (must) {
+      message.warning('首次登录请立即修改默认密码');
+      nextTick(() => personalRef.value?.show(true));
+    }
+  }
+);
 
 // useMenuStore().getMenuList();
 
