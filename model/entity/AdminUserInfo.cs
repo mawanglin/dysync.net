@@ -29,6 +29,13 @@
         /// </summary>
         [SqlSugar.SugarColumn(IsNullable = true)]
         public string Avatar { get; set; }
+
+        /// <summary>
+        /// 是否必须修改密码（以默认凭据首次创建后强制改密）。
+        /// 既有部署升级时新列为 NULL，读回为 false，不被回溯强制；仅新 seed 置 true。
+        /// </summary>
+        [SqlSugar.SugarColumn(IsNullable = true)]
+        public bool MustChangePwd { get; set; }
     }
 
 }

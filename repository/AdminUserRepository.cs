@@ -38,6 +38,8 @@ namespace dy.net.repository
                         var newpassword = PasswordUtil.Hash(loginUser.Password);
                         user.Password = newpassword;
                         user.UserName = loginUser.UserName;
+                        // 用户已自行设置密码，清除「强制首登改密」标记。
+                        user.MustChangePwd = false;
                         var res = await this.UpdateAsync(user);
                         return (res ? 0 : -1, res ? "更新成功" : "更新失败");
                     }

@@ -42,7 +42,9 @@ namespace dy.net.service
             {
                 UserName = UserName,
                 Password = Password,
-                CreateTime = DateTime.Now
+                CreateTime = DateTime.Now,
+                // 默认凭据 seed：强制首次登录后改密（登录响应回传，改密成功后清零）。
+                MustChangePwd = true
             };
             return _userRepository.InitUser(userInfo);
         }

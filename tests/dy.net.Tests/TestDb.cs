@@ -23,7 +23,7 @@ namespace dy.net.Tests
                 IsAutoCloseConnection = true,
                 InitKeyType = InitKeyType.Attribute
             });
-            Db.CodeFirst.InitTables<DouyinVideo, DouyinCookie>();
+            Db.CodeFirst.InitTables<DouyinVideo, DouyinCookie, AdminUserInfo>();
         }
 
         public void Dispose()

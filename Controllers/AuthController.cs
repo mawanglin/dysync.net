@@ -85,7 +85,8 @@ namespace dy.net.Controllers
                             await _userService.UpdateUser(user);
                         }
                         var tokenString = GenerateJwtToken(user.UserName);
-                        return Ok(new { code = 0, erro = "", token = tokenString, expires = 24 * 60 * 60 * 1000, data = user.UserName });
+                        // mustChangePwd：默认凭据首登时为 true，前端据此提示立即改密。
+                        return Ok(new { code = 0, erro = "", token = tokenString, expires = 24 * 60 * 60 * 1000, data = user.UserName, mustChangePwd = user.MustChangePwd });
                     }
                     else
                     {

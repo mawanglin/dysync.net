@@ -25,6 +25,7 @@ projects target net8.0; drop it on a net8.0 SDK.) Filter a single class with
 | `VideoTitleGenerator.Generate` | `PureHelperTests` | Placeholder substitution, char-filtering of title/author, unknown-token passthrough, empty-field placeholder, 60-char cap |
 | `DouyinVideoService.GetStatics` | `VideoStatsCharacterizationTests` | Full `VideoStaticsDto` snapshot: counts by type, distinct author/category, GB size formatting incl. the `<0.01` zero-substitution branch, **plus the `Categories` list (Tag1 grouping, empty→`其他`, desc order) and `Authors` list (Author grouping, desc order, last-row `Icon`/`UperId` semantics)** |
 | `DouyinVideoService.GetChartData` | `VideoStatsCharacterizationTests` | Per-day `SyncTime` grouping and per-type counts (Graphic = empty `FileHash`), **single-day and multi-day group ordering** |
+| `AdminUserService.InitUser` / `AdminUserRepository.UpdatePwd` | `AdminUserRepositoryTests` | Admin-user seed + change-password against the real SQLite stack, incl. review-#1 **`MustChangePwd`** (force first-login change): seed sets it `true` & stores PBKDF2 (not MD5); duplicate `InitUser` → `(-1,"系统用户已存在")` no second row; correct old-pwd `UpdatePwd` clears the flag & rehashes; wrong old-pwd → `(-1,"原密码错误")` flag unchanged; unknown `UserId` → `(-1,"用户不存在")` |
 
 > These tests were deliberately widened (Categories/Authors/multi-day) before
 > the in-memory→SQL aggregation refactor, then `GetStatics`/`GetChartData` were
