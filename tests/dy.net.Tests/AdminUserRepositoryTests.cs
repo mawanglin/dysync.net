@@ -97,6 +97,20 @@ namespace dy.net.Tests
         }
 
         [Fact]
+        public void ResetPwd_ViaPwdTxt_ClearsMustChangePwd_AndRehashes()
+        {
+            using var t = new TestDb();
+            Service(t).InitUser("douyin", "douyin2026");
+
+            var ok = Repo(t).ResetPwd("resetSecret123");
+
+            Assert.True(ok);
+            var after = t.Db.Queryable<AdminUserInfo>().First();
+            Assert.False(after.MustChangePwd);                              // pwd.txt 显式改密 → 标记清除
+            Assert.True(PasswordUtil.Verify(after.Password, "resetSecret123"));
+        }
+
+        [Fact]
         public async Task UpdatePwd_WithUnknownUserId_ReturnsUserNotFound()
         {
             using var t = new TestDb();

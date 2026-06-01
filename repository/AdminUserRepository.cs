@@ -120,7 +120,8 @@ namespace dy.net.repository
 
             // 参数化，杜绝 SQL 注入。注意：无 WHERE 为单管理员场景的既有语义，
             // 行范围未改动以避免行为变更；多用户场景需另行加 WHERE。
-            const string sql = "UPDATE login_user_info SET Password=@pwd";
+            // 通过 pwd.txt 显式改密即已脱离已知默认凭据，一并清除强制改密标记（review #1）。
+            const string sql = "UPDATE login_user_info SET Password=@pwd, MustChangePwd=0";
 
             return this.Db.Ado.ExecuteCommand(sql, new SqlSugar.SugarParameter("@pwd", password)) > 0;
         }
