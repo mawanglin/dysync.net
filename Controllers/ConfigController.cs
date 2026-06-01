@@ -158,6 +158,12 @@ namespace dy.net.Controllers
         [AllowAnonymous]
         public async Task<IActionResult> DeskInitAsync([FromBody] DouyinCookie dyUserCookies)
         {
+            // 0. 未初始化门控：deskinit 仅用于首次安装配置首个 Cookie。
+            //    系统一旦完成初始化（已存在 Cookie），匿名调用即被拒绝，
+            //    后续 Cookie 管理须经鉴权的 update 端点。堵住「随时匿名注入 cookie/路径」的攻击面。
+            if (await dyCookieService.IsInit())
+                return ApiResult.Fail("系统已初始化，禁止匿名配置；请登录后在设置中管理 Cookie");
+
             // 1. 基础赋值
             dyUserCookies.Id = IdGener.GetLong().ToString();
 
