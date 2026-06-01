@@ -160,6 +160,11 @@ namespace dy.net.Controllers
         [AllowAnonymous]
         public async Task<IActionResult> FastResetCookie([FromBody] DouyinCookieResetDto dto)
         {
+            // 来源门控：匿名 cookie 重置仅允许内网/本机（dy.cookie.exe 工具走 LAN），
+            // 拒绝公网匿名按 id 覆盖 cookie 的攻击面。
+            if (!IsLocalToolRequest())
+                return StatusCode(403, new { code = -1, erro = "仅允许内网/本机访问该工具端点" });
+
             var cookieValid = await httpClientService.CheckCookie(new DouyinCookie { Cookies = dto.cookie });
             if (!cookieValid)
                 return ApiResult.Fail("Cookie无效或已过期，请按照文档提示重新获取有效Cookie，不要使用插件获取cookie");
@@ -176,11 +181,21 @@ namespace dy.net.Controllers
         [HttpGet("Cookies")]
         public async Task<IActionResult> GetAllCookies()
         {
+            // 来源门控：匿名枚举所有 cookie 的 id/name/status 仅允许内网/本机。
+            if (!IsLocalToolRequest())
+                return StatusCode(403, new { code = -1, erro = "仅允许内网/本机访问该工具端点" });
+
             var cookies = await dyCookieService.GetAllAsync();
             if (cookies != null)
                 return ApiResult.Success(cookies.Select(x => new { id= x.Id,name= x.UserName, status=x.StatusMsg }));
             return ApiResult.Success();
         }
+
+        /// <summary>
+        /// 请求是否来自内网/本机（匿名工具端点的来源门控）。
+        /// </summary>
+        private bool IsLocalToolRequest()
+            => NetworkGuard.IsPrivateOrLoopback(HttpContext.Connection.RemoteIpAddress);
 
 
         /// <summary>
