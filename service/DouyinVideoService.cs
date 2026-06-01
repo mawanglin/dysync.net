@@ -477,39 +477,21 @@ namespace dy.net.service
 
             if (videos != null && videos.Count > 0)
             {
-                if (videos.Count <= 30)
+                // 销毁性操作（重下载记录改写 + 物理删除）必须 await 并据真实结果返回，
+                // 不再对 >30 条 fire-and-forget（原 Task.Run 会让调用方在删除真正完成前
+                // 即被告知“成功”，掩盖静默数据/文件丢失）。两分支逻辑本就相同，已合并。
+                var result = await ReDownloadViedoAsync(new ReDownViedoDto { Ids = videos.Select(x => x.Id)?.ToList() }, true);
+                if (result)
                 {
-                    var result = await ReDownloadViedoAsync(new ReDownViedoDto { Ids = videos.Select(x => x.Id)?.ToList() }, true);
-                    if (result)
-                    {
-                        //加入删除逻辑
-                        var deletes = await AddDeleteVideo(videos);
-                        Serilog.Log.Debug($"批量永久删除博主{videos.FirstOrDefault()?.Author}，共{deletes}条记录");
-                        return true;
-                    }
-                    else
-                    {
-                        Serilog.Log.Error($"批量删除{videos.FirstOrDefault()?.Author}视频失败");
-                        return false;
-                    }
+                    //加入删除逻辑
+                    var deletes = await AddDeleteVideo(videos);
+                    Serilog.Log.Debug($"批量永久删除博主{videos.FirstOrDefault()?.Author}，共{deletes}条记录");
+                    return true;
                 }
                 else
                 {
-                    Task.Run(async () =>
-                    {
-                        var result = await ReDownloadViedoAsync(new ReDownViedoDto { Ids = videos.Select(x => x.Id)?.ToList() }, true);
-                        if (result)
-                        {
-                            //加入删除逻辑
-                            var deletes = await AddDeleteVideo(videos);
-                            Serilog.Log.Debug($"批量永久删除博主{videos.FirstOrDefault()?.Author}，{deletes}条记录");
-                        }
-                        else
-                        {
-                            Serilog.Log.Error($"批量删除{videos.FirstOrDefault()?.Author}视频失败");
-                        }
-                    });
-                    return true;
+                    Serilog.Log.Error($"批量删除{videos.FirstOrDefault()?.Author}视频失败");
+                    return false;
                 }
             }
             else
