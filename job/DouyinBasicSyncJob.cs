@@ -110,7 +110,7 @@ namespace dy.net.job
             DouyinCollectCateService douyinCollectCateService,
             SyncRunState syncRunState)
         {
-            this.syncRunState = syncRunState;
+            this.syncRunState = syncRunState ?? throw new ArgumentNullException(nameof(syncRunState));
             this.douyinCookieService = douyinCookieService ?? throw new ArgumentNullException(nameof(douyinCookieService));
             this.douyinHttpClientService = douyinHttpClientService ?? throw new ArgumentNullException(nameof(douyinHttpClientService));
             this.douyinVideoService = douyinVideoService ?? throw new ArgumentNullException(nameof(douyinVideoService));
