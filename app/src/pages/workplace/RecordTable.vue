@@ -44,6 +44,9 @@
           <a-button type="primary" @click="GetRecords" class="query-button">
             <SearchOutlined />查询
           </a-button>
+          <a-button type="primary" ghost @click="TriggerNow" class="query-button" :loading="isTriggering" :disabled="isSyncing" style="margin-left:8px;">
+            <SyncOutlined />立即同步
+          </a-button>
           <a-form-item class="form-item batch-operation-item" style="margin-left:20px;">
             <a-switch v-model:checked="isBatchMode" checked-children="批量" un-checked-children="批量" class="batch-switch" />
           </a-form-item>
@@ -597,6 +600,31 @@ const getCookies = () => {
         quaryData.cookieId = cookies.value[0].value;
         GetRecords();
       }
+    });
+};
+
+/** 立即触发同步（不重启全部任务，仅触发已启用任务各跑一次） */
+const isTriggering = ref(false);
+const TriggerNow = () => {
+  if (isTriggering.value) return;
+  isTriggering.value = true;
+  useApiStore()
+    .TriggerSyncNow()
+    .then((res) => {
+      if (res.code === 0) {
+        const n = res?.data?.triggered;
+        message.success(n ? `已触发 ${n} 个同步任务，请稍候查看同步记录` : '已触发同步任务');
+        GetRecords();
+      } else {
+        message.warning(res.message || '没有可触发的已启用同步任务，请先在配置页开启下载开关并保存');
+      }
+    })
+    .catch((error) => {
+      console.error('立即同步API调用失败:', error);
+      message.error('立即同步失败，请检查网络或联系管理员');
+    })
+    .finally(() => {
+      isTriggering.value = false;
     });
 };
 

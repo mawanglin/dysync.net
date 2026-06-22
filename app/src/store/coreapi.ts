@@ -95,6 +95,17 @@ export const useApiStore = defineStore('coreapi', () => {
 
     });
   }
+  // 立即触发同步任务（不重启全部任务，仅触发已启用任务跑一次）；不传 type 触发全部视频下载类任务
+  async function TriggerSyncNow(type?: string) {
+    const url = type
+      ? '/api/config/TriggerSyncNow?type=' + encodeURIComponent(type)
+      : '/api/config/TriggerSyncNow';
+    return http.request<any, Response<any>>(url, 'get').then(r => {
+      return r;
+    }).finally(() => {
+
+    });
+  }
   //视频统计
   async function VideoStatics() {
     return http.request<any, Response<any>>('/api/video/statics', 'get').then(r => {
@@ -416,6 +427,7 @@ export const useApiStore = defineStore('coreapi', () => {
     apiUserInfo,
     apiChangePwd,
     StartJobNow,
+    TriggerSyncNow,
     VideoStatics,
     VideoPageList,
     CookiePageList,
