@@ -152,7 +152,7 @@ namespace dy.net.service
                             CookieName = kv.Value.CookieName
                         })
                         .ToList(),
-                    RecentLogs = _logs.Reverse().ToList()   // 最新在前
+                    RecentLogs = _logs.ToArray().Reverse().ToList()   // 锁内拍快照再反转：最新在前
                 };
             }
         }

@@ -96,5 +96,19 @@ namespace dy.net.Tests
             Assert.Empty(snap.Types);
             Assert.Equal(0, snap.ElapsedSec);
         }
+
+        [Fact]
+        public void OnDownloaded_caps_recent_logs_at_50()
+        {
+            var s = new SyncRunState();
+            s.RegisterStart(VideoTypeEnum.dy_collects, "Zoe", T0);
+            for (int i = 1; i <= 51; i++)
+                s.OnDownloaded(VideoTypeEnum.dy_collects, true, $"视频{i}", T0);
+
+            var snap = s.GetSnapshot(T0);
+            Assert.Equal(50, snap.RecentLogs.Count);                      // 上限 50
+            Assert.Contains("视频51", snap.RecentLogs[0].Text);           // 最新在前（列表头）
+            Assert.Contains("视频2", snap.RecentLogs.Last().Text);        // 最旧保留项（列表尾）：视频1 已被淘汰
+        }
     }
 }
