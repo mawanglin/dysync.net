@@ -25,10 +25,11 @@ namespace dy.net.Controllers
         private readonly DouyinFollowService douyinFollowService;
         private readonly DouyinCookieService douyinCookieService;
         private readonly DouyinHttpClientService httpClientService;
+        private readonly SyncRunState syncRunState;
 
 
 
-        public ConfigController(DouyinCookieService dyCookieService, DouyinCommonService commonService, DouyinQuartzJobService quartzJobService, DouyinFollowService douyinFollowService, DouyinCookieService douyinCookieService, DouyinHttpClientService httpClientService)
+        public ConfigController(DouyinCookieService dyCookieService, DouyinCommonService commonService, DouyinQuartzJobService quartzJobService, DouyinFollowService douyinFollowService, DouyinCookieService douyinCookieService, DouyinHttpClientService httpClientService, SyncRunState syncRunState)
         {
             this.dyCookieService = dyCookieService;
             this.commonService = commonService;
@@ -36,6 +37,7 @@ namespace dy.net.Controllers
             this.douyinFollowService = douyinFollowService;
             this.douyinCookieService = douyinCookieService;
             this.httpClientService = httpClientService;
+            this.syncRunState = syncRunState;
         }
 
 
@@ -397,6 +399,10 @@ namespace dy.net.Controllers
         [HttpGet("TriggerSyncNow")]
         public async Task<IActionResult> TriggerSyncNow(string type = null)
         {
+            // 后端互斥校验：已有同步在执行（含定时触发）则拒绝再次触发
+            if (!syncRunState.TryBeginManualTrigger(DateTime.Now))
+                return ApiResult.Fail("已有同步任务正在执行，请先停止或等待完成");
+
             if (!string.IsNullOrWhiteSpace(type))
             {
                 if (!Enum.TryParse<VideoTypeEnum>(type, true, out var vt))
@@ -414,6 +420,27 @@ namespace dy.net.Controllers
                 : ApiResult.Fail("没有可触发的已启用同步任务，请先在配置页开启对应的下载开关并保存");
         }
 
+
+        /// <summary>
+        /// 停止当前正在执行的同步（下完当前视频后中止本轮）。无任务执行时返回失败。
+        /// </summary>
+        [HttpGet("StopSyncNow")]
+        public IActionResult StopSyncNow()
+        {
+            var stopped = syncRunState.RequestStop();
+            return stopped
+                ? ApiResult.Success(new { stopped = true }, "已发出停止指令，正在结束当前视频后中止")
+                : ApiResult.Fail("当前没有正在执行的同步任务");
+        }
+
+        /// <summary>
+        /// 查询当前同步执行情况（前端轮询：驱动按钮互斥 + 进度面板）。
+        /// </summary>
+        [HttpGet("SyncStatus")]
+        public IActionResult SyncStatus()
+        {
+            return ApiResult.Success(syncRunState.GetSnapshot(DateTime.Now));
+        }
 
         private void ReStartJob()
         {
