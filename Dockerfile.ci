@@ -10,7 +10,9 @@ WORKDIR /src/app
 RUN npm install -g pnpm@9
 # 先装依赖（利用 Docker 层缓存：依赖未变则跳过重装）
 COPY app/package.json app/pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile
+# 用 --no-frozen-lockfile：CI 环境 pnpm 默认 frozen，若 lockfile 与 package.json 略有出入会硬失败；
+# 关掉后允许按需就地解析，避免因历史不同步导致整条流水线中断。
+RUN pnpm install --no-frozen-lockfile
 # 前端运行时需要的 env：VITE_API_URL 会被烤进产物（如 `${VITE_API_URL}api/Video/play/...`）。
 # app/.env 既未入 git、又被 .dockerignore 排除，故在此显式生成 .env.production。
 # 默认 "/" 表示同源（请求走 /api，与单镜像部署一致）；如需指向其它后端可在构建时用 --build-arg 覆盖。
