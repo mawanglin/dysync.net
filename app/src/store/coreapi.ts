@@ -106,6 +106,22 @@ export const useApiStore = defineStore('coreapi', () => {
 
     });
   }
+  // 停止当前同步
+  async function StopSyncNow() {
+    return http.request<any, Response<any>>('/api/config/StopSyncNow', 'get').then(r => {
+      return r;
+    }).finally(() => {
+
+    });
+  }
+  // 查询同步执行状态
+  async function SyncStatus() {
+    return http.request<any, Response<any>>('/api/config/SyncStatus', 'get').then(r => {
+      return r;
+    }).finally(() => {
+
+    });
+  }
   //视频统计
   async function VideoStatics() {
     return http.request<any, Response<any>>('/api/video/statics', 'get').then(r => {
@@ -428,6 +444,8 @@ export const useApiStore = defineStore('coreapi', () => {
     apiChangePwd,
     StartJobNow,
     TriggerSyncNow,
+    StopSyncNow,
+    SyncStatus,
     VideoStatics,
     VideoPageList,
     CookiePageList,

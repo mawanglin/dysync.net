@@ -44,8 +44,11 @@
           <a-button type="primary" @click="GetRecords" class="query-button">
             <SearchOutlined />查询
           </a-button>
-          <a-button type="primary" ghost @click="TriggerNow" class="query-button" :loading="isTriggering" :disabled="isSyncing" style="margin-left:8px;">
+          <a-button type="primary" ghost @click="TriggerNow" class="query-button" :loading="isTriggering" :disabled="syncStatus.running" style="margin-left:8px;">
             <SyncOutlined />立即同步
+          </a-button>
+          <a-button danger ghost @click="StopNow" class="query-button" :loading="isStopping" :disabled="!syncStatus.running" style="margin-left:8px;">
+            <CloseOutlined />停止
           </a-button>
           <a-form-item class="form-item batch-operation-item" style="margin-left:20px;">
             <a-switch v-model:checked="isBatchMode" checked-children="批量" un-checked-children="批量" class="batch-switch" />
@@ -79,6 +82,25 @@
         </div>
       </a-form>
     </div>
+
+    <!-- 同步进度面板（仅运行中显示） -->
+    <a-card v-if="syncStatus.running" size="small" class="sync-progress-card" style="margin-bottom:12px;">
+      <template #title>
+        同步进行中 · 已运行 {{ syncStatus.elapsedSec }} 秒
+      </template>
+      <div v-for="t in syncStatus.types" :key="t.type" style="margin-bottom:4px;">
+        <b>{{ t.name }}</b>
+        · 已下载 {{ t.downloaded }}<span v-if="t.pageTotal">/{{ t.pageTotal }}</span>
+        · 失败 {{ t.failed }}
+        <span v-if="t.cookieName">· 账号 {{ t.cookieName }}</span>
+        <div style="color:#888;font-size:12px;">当前：{{ t.currentTitle || '—' }}</div>
+      </div>
+      <div v-if="syncStatus.recentLogs && syncStatus.recentLogs.length" style="margin-top:8px;max-height:160px;overflow:auto;border-top:1px solid #f0f0f0;padding-top:6px;">
+        <div v-for="(log, i) in syncStatus.recentLogs" :key="i" style="font-size:12px;color:#666;line-height:1.6;">
+          {{ log.text }}
+        </div>
+      </div>
+    </a-card>
 
     <!-- 已删除视频-抽屉 -->
 
@@ -184,7 +206,7 @@
 </template>
 
 <script lang="ts" setup>
-import { reactive, ref, onMounted, nextTick, watch, computed } from 'vue';
+import { reactive, ref, onMounted, onBeforeUnmount, nextTick, watch, computed } from 'vue';
 import { useApiStore } from '@/store';
 import type { UnwrapRef } from 'vue';
 import dayjs, { Dayjs } from 'dayjs';
@@ -198,6 +220,7 @@ import {
   ClearOutlined,
   CopyOutlined,
   DeleteOutlined,
+  CloseOutlined,
 } from '@ant-design/icons-vue';
 
 // 类型定义
@@ -605,6 +628,38 @@ const getCookies = () => {
 
 /** 立即触发同步（不重启全部任务，仅触发已启用任务各跑一次） */
 const isTriggering = ref(false);
+
+// 同步实时状态（由 SyncStatus 轮询填充）
+const syncStatus = ref<any>({ running: false, startedAt: null, elapsedSec: 0, types: [], recentLogs: [] });
+const isStopping = ref(false);
+let syncPollTimer: any = null;
+
+const fetchSyncStatus = async () => {
+  try {
+    const res = await useApiStore().SyncStatus();
+    if (res.code === 0 && res.data) {
+      syncStatus.value = res.data;
+      isSyncing.value = !!res.data.running;
+    }
+  } catch (e) {
+    // 轮询失败静默
+  }
+};
+
+const StopNow = () => {
+  if (isStopping.value || !syncStatus.value.running) return;
+  isStopping.value = true;
+  useApiStore()
+    .StopSyncNow()
+    .then((res) => {
+      if (res.code === 0) message.success(res.message || '已发出停止指令');
+      else message.warning(res.message || '当前没有正在执行的同步任务');
+      fetchSyncStatus();
+    })
+    .catch(() => message.error('停止失败，请检查网络'))
+    .finally(() => { isStopping.value = false; });
+};
+
 const TriggerNow = () => {
   if (isTriggering.value) return;
   isTriggering.value = true;
@@ -615,6 +670,7 @@ const TriggerNow = () => {
         const n = res?.data?.triggered;
         message.success(n ? `已触发 ${n} 个同步任务，请稍候查看同步记录` : '已触发同步任务');
         GetRecords();
+        fetchSyncStatus();
       } else {
         message.warning(res.message || '没有可触发的已启用同步任务，请先在配置页开启下载开关并保存');
       }
@@ -1067,6 +1123,11 @@ const copyVideoPath = (path?: string) => {
 onMounted(() => {
   // getConfig();
   getCookies();
+  fetchSyncStatus();
+  syncPollTimer = setInterval(fetchSyncStatus, 2500);
+});
+onBeforeUnmount(() => {
+  if (syncPollTimer) clearInterval(syncPollTimer);
 });
 </script>
 
