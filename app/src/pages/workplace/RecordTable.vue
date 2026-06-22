@@ -90,7 +90,7 @@
       </template>
       <div v-for="t in syncStatus.types" :key="t.type" style="margin-bottom:4px;">
         <b>{{ t.name }}</b>
-        · 已下载 {{ t.downloaded }}<span v-if="t.pageTotal">/{{ t.pageTotal }}</span>
+        · 本轮已下载 {{ t.downloaded }} 条
         · 失败 {{ t.failed }}
         <span v-if="t.cookieName">· 账号 {{ t.cookieName }}</span>
         <div style="color:#888;font-size:12px;">当前：{{ t.currentTitle || '—' }}</div>
@@ -638,8 +638,9 @@ const fetchSyncStatus = async () => {
   try {
     const res = await useApiStore().SyncStatus();
     if (res.code === 0 && res.data) {
+      // 仅更新全局同步态；不要写本地操作锁 isSyncing（它是“立即同步/批量/重下”等本地瞬时操作的锁，
+      // 两者来源混写会互相覆盖产生竞态）。按钮互斥与进度面板一律读 syncStatus.running。
       syncStatus.value = res.data;
-      isSyncing.value = !!res.data.running;
     }
   } catch (e) {
     // 轮询失败静默
