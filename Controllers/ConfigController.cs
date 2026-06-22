@@ -388,6 +388,32 @@ namespace dy.net.Controllers
             return ApiResult.Success();
         }
 
+        /// <summary>
+        /// 手动立即触发同步任务一次（无需等待定时任务）。
+        /// 不传 type：触发全部视频下载类任务（收藏/喜欢/关注作品/自定义收藏夹/合集/短剧）。
+        /// 传 type（如 dy_collects/dy_favorite/dy_follows/dy_mix/dy_series/dy_custom_collect）：仅触发该类型。
+        /// 注意：仅能触发“当前已调度（已启用）”的任务；若对应类型未启用会返回失败提示。
+        /// </summary>
+        [HttpGet("TriggerSyncNow")]
+        public async Task<IActionResult> TriggerSyncNow(string type = null)
+        {
+            if (!string.IsNullOrWhiteSpace(type))
+            {
+                if (!Enum.TryParse<VideoTypeEnum>(type, true, out var vt))
+                    return ApiResult.Fail($"未知的同步类型: {type}");
+
+                var ok = await quartzJobService.TriggerJobNowAsync(vt);
+                return ok
+                    ? ApiResult.Success(new { triggered = 1, type = vt.ToString() }, "已触发同步任务")
+                    : ApiResult.Fail("该类型任务未在调度中（可能未启用或未满足启用条件），无法触发");
+            }
+
+            var count = await quartzJobService.TriggerAllVideoSyncNowAsync();
+            return count > 0
+                ? ApiResult.Success(new { triggered = count }, $"已触发 {count} 个同步任务")
+                : ApiResult.Fail("没有可触发的已启用同步任务，请先在配置页开启对应的下载开关并保存");
+        }
+
 
         private void ReStartJob()
         {

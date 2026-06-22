@@ -54,7 +54,8 @@ namespace dy.net.job
             {
                 authorFolder = $"{DouyinFileNameHelper.SanitizeLinuxFileName(item.Author?.Nickname, item.Author?.Uid, true)}";
             }
-            var folder = Path.Combine(cookie.FavSavePath, authorFolder, $"{DouyinFileNameHelper.SanitizeLinuxFileName(item.Desc, item.AwemeId, true)}");
+            var folder = SafeCombine(cookie?.FavSavePath, "喜欢视频保存路径 FavSavePath", cookie, authorFolder, DouyinFileNameHelper.SanitizeLinuxFileName(item.Desc, item.AwemeId, true));
+            if (folder == null) return null;
             if (!Directory.Exists(folder))
             {
                 Directory.CreateDirectory(folder);
@@ -63,7 +64,8 @@ namespace dy.net.job
             {
                 //说明文件夹存在，检查里面有没有文件，如果已经有视频文件了，说明视频标题相同，那么应该重新创建文件夹,+id
 
-                folder = Path.Combine(cookie.SavePath, authorFolder, $"{DouyinFileNameHelper.SanitizeLinuxFileName(item.Desc, item.AwemeId, true)}" + "_" + item.AwemeId);
+                folder = SafeCombine(cookie?.SavePath, "视频存储路径 SavePath", cookie, authorFolder, DouyinFileNameHelper.SanitizeLinuxFileName(item.Desc, item.AwemeId, true) + "_" + item.AwemeId);
+                if (folder == null) return null;
             }
             return folder;
         }

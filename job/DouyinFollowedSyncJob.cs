@@ -53,7 +53,8 @@ namespace dy.net.job
                 : DouyinFileNameHelper.SanitizeLinuxFileName(rawAuthorName, "", true);
             // 2. 确定最终文件夹路径（遵循原有优先级：followed.SavePath > authorName > 基础路径）
             var targetFolderName = !string.IsNullOrWhiteSpace(followed?.SavePath) ? followed.SavePath : authorName;
-            var rootFolder = Path.Combine(cookie.UpSavePath, targetFolderName);
+            var rootFolder = SafeCombine(cookie?.UpSavePath, "关注博主保存路径 UpSavePath", cookie, targetFolderName);
+            if (rootFolder == null) return null;
 
             if (!Directory.Exists(rootFolder)) Directory.CreateDirectory(rootFolder);
             #endregion
@@ -61,7 +62,7 @@ namespace dy.net.job
             var sampleName = DouyinFileNameHelper.SanitizeLinuxFileName(item.Desc, item.AwemeId, true);
             var (existingName, _) = douyinVideoService.GetUperLastViedoFileName(item.Author.Uid, sampleName);
             var fileNameFolder = string.IsNullOrWhiteSpace(existingName) ? sampleName : existingName;
-            return Path.Combine(rootFolder, fileNameFolder);
+            return SafeCombine(rootFolder, "关注博主保存路径 UpSavePath", cookie, fileNameFolder);
         }
         /// <summary>
         /// 关注的视频，生成文件名称

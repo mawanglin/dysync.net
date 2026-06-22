@@ -245,6 +245,69 @@ namespace dy.net.service
         }
 
         /// <summary>
+        /// 手动立即触发指定类型的同步任务一次（不影响其既有定时计划）。
+        /// 基于 Quartz 的 TriggerJob：仅对“当前已调度”的任务有效；
+        /// 若该任务未被调度（未启用或未满足启用条件），返回 false。
+        /// </summary>
+        /// <param name="configKey">任务类型</param>
+        public async Task<bool> TriggerJobNowAsync(VideoTypeEnum configKey)
+        {
+            if (!JobConfigs.TryGetValue(configKey, out var jobConfig))
+            {
+                Log.Error("【quartz】找不到任务配置: {ConfigKey}", configKey);
+                return false;
+            }
+
+            try
+            {
+                var scheduler = await _schedulerFactory.GetScheduler();
+                var jobKey = new JobKey(jobConfig.JobKey, DefaultJobGroup);
+
+                if (!await scheduler.CheckExists(jobKey))
+                {
+                    Log.Warning("【quartz】任务[{Desc}]未在调度中（可能未启用或未满足启用条件），无法手动触发", jobConfig.Description);
+                    return false;
+                }
+
+                await scheduler.TriggerJob(jobKey);
+                Log.Information("【quartz】已手动触发任务: {Desc}", jobConfig.Description);
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "【quartz】手动触发任务失败: {Desc}", jobConfig.Description);
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// 手动立即触发所有“视频下载类”同步任务各一次
+        /// （收藏 / 喜欢 / 关注作品 / 自定义收藏夹 / 合集 / 短剧）。
+        /// 仅触发当前已调度的任务，返回成功触发的任务数量。
+        /// </summary>
+        public async Task<int> TriggerAllVideoSyncNowAsync()
+        {
+            var videoTypes = new[]
+            {
+                VideoTypeEnum.dy_collects,
+                VideoTypeEnum.dy_favorite,
+                VideoTypeEnum.dy_follows,
+                VideoTypeEnum.dy_custom_collect,
+                VideoTypeEnum.dy_mix,
+                VideoTypeEnum.dy_series,
+            };
+
+            int count = 0;
+            foreach (var t in videoTypes)
+            {
+                if (await TriggerJobNowAsync(t)) count++;
+            }
+
+            Log.Information("【quartz】手动触发视频同步任务完成，成功触发 {Count} 个", count);
+            return count;
+        }
+
+        /// <summary>
         /// 移除所有已存在的任务（避免重复调度）
         /// </summary>
         private static async Task RemoveAllExistingJobs(IScheduler scheduler)

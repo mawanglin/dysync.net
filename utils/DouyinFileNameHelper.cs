@@ -18,9 +18,9 @@ namespace dy.net.utils
         public static string SanitizeLinuxFileName(string originalName, string defaultName, bool isfolder = false)
         {
             string result = string.Empty;
-            // 1. 空值处理：直接返回默认名
+            // 1. 空值处理：直接返回默认名（defaultName 也可能为 null，做空安全避免 NRE）
             if (string.IsNullOrWhiteSpace(originalName))
-                result = defaultName.Replace(" ", "");
+                result = (defaultName ?? string.Empty).Replace(" ", "");
             else
             {
                 // 2. 过滤 Linux 非法字符：
@@ -62,6 +62,9 @@ namespace dy.net.utils
             }
             if (string.IsNullOrWhiteSpace(result))
                 result = defaultName;
+            // 最终兜底：保证永不返回 null/空白，避免下游 Path.Combine 抛 ArgumentNullException
+            if (string.IsNullOrWhiteSpace(result))
+                result = "未命名";
             return result;
         }
 

@@ -31,13 +31,15 @@ namespace dy.net.job
             {
                 if (string.IsNullOrWhiteSpace(cookie.MixPath))
                 {
-                    var folder = Path.Combine(cookie.SavePath, VideoType.GetDesc(), DouyinFileNameHelper.SanitizeLinuxFileName(cate.SaveFolder, cate.Name, true));
+                    var folder = SafeCombine(cookie?.SavePath, "视频存储路径 SavePath", cookie, VideoType.GetDesc(), DouyinFileNameHelper.SanitizeLinuxFileName(cate.SaveFolder, cate.Name, true));
+                    if (folder == null) return null;
                     if (!Directory.Exists(folder)) Directory.CreateDirectory(folder);
                     return folder;
                 }
                 else
                 {
-                    var folder = Path.Combine(cookie.MixPath, DouyinFileNameHelper.SanitizeLinuxFileName(cate.SaveFolder, cate.Name, true));
+                    var folder = SafeCombine(cookie?.MixPath, "合集保存路径 MixPath", cookie, DouyinFileNameHelper.SanitizeLinuxFileName(cate.SaveFolder, cate.Name, true));
+                    if (folder == null) return null;
                     if (!Directory.Exists(folder)) Directory.CreateDirectory(folder);
                     return folder;
                 }

@@ -60,12 +60,14 @@ namespace dy.net.job
             // 3. 提取重复的视频文件夹名（避免重复调用方法）
             string videoFolderName = DouyinFileNameHelper.SanitizeLinuxFileName(item?.Desc, item?.AwemeId, true);
 
-            // 4. 简化文件夹路径拼接+存在判断（核心逻辑不变）
-            string folder = Path.Combine(cookie.SavePath, authorFolder, videoFolderName);
+            // 4. 简化文件夹路径拼接+存在判断（核心逻辑不变）；SavePath 缺失时 SafeCombine 返回 null 并打日志
+            string folder = SafeCombine(cookie?.SavePath, "视频存储路径 SavePath", cookie, authorFolder, videoFolderName);
+            if (folder == null) return null;
             if (Directory.Exists(folder))
             {
                 // 文件夹存在则拼接AwemeId（保留你的原逻辑）
-                folder = Path.Combine(cookie.SavePath, authorFolder, $"{videoFolderName}_{item.AwemeId}");
+                folder = SafeCombine(cookie?.SavePath, "视频存储路径 SavePath", cookie, authorFolder, $"{videoFolderName}_{item.AwemeId}");
+                if (folder == null) return null;
             }
             else
             {

@@ -24,6 +24,29 @@ namespace dy.net.Tests
             _ => throw new System.ArgumentException()
         };
 
+        // 加固：保证任何 null/空 入参都不抛异常，且永不返回 null/空白
+        // （根因修复：旧逻辑在 originalName 空且 defaultName 为 null 时会 NRE 或返回 null，
+        //  导致下游 CreateSaveFolder 的 Path.Combine 抛 ArgumentNullException，使所有视频下载崩溃）
+        [Theory]
+        [InlineData(null, null, false)]
+        [InlineData(null, null, true)]
+        [InlineData("", null, true)]
+        [InlineData("   ", null, false)]
+        [InlineData("***", null, true)]   // 全非法字符 + isfolder 清洗后为空，defaultName 也为 null
+        public void SanitizeLinuxFileName_never_returns_null_or_throws(string input, string def, bool folder)
+        {
+            var actual = DouyinFileNameHelper.SanitizeLinuxFileName(input, def, folder);
+            Assert.False(string.IsNullOrWhiteSpace(actual));
+        }
+
+        [Fact]
+        public void SanitizeLinuxFileName_falls_back_to_default_when_name_empty()
+        {
+            // originalName 清洗为空但 defaultName 有值 → 用 defaultName（AwemeId 兜底语义不变）
+            Assert.Equal("7321309610927770930",
+                DouyinFileNameHelper.SanitizeLinuxFileName("***", "7321309610927770930", true));
+        }
+
         [Theory]
         [InlineData("abc定义123!!", "abc定义123")]
         [InlineData("  spaced  ", "spaced")]

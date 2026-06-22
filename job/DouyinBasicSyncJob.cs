@@ -202,6 +202,12 @@ namespace dy.net.job
         /// <returns>创建的视频保存文件夹路径</returns>
         protected virtual string CreateSaveFolder(DouyinCookie cookie, Aweme item, AppConfig config, DouyinFollowed followed, DouyinCollectCate cate)
         {
+            // 基础保存路径缺失时，明确报错并返回 null（由调用方跳过该视频），避免 Path.Combine 抛 ArgumentNullException
+            if (string.IsNullOrWhiteSpace(cookie?.SavePath))
+            {
+                Log.Error($"[{cookie?.UserName}][{VideoType.GetDesc()}]-保存目录[视频存储路径 SavePath]未配置（为空），请在配置页填写；本视频已跳过。");
+                return null;
+            }
             var (primary, collisionResolved) = SyncDecisionHelper.BuildVideoSaveFolderCandidates(cookie, item);
             if (!Directory.Exists(primary))
             {
@@ -210,6 +216,29 @@ namespace dy.net.job
             }
             //说明文件夹存在，检查里面有没有文件，如果已经有视频文件了，说明视频标题相同，那么应该重新创建文件夹,+id
             return collisionResolved;
+        }
+
+        /// <summary>
+        /// 安全拼接保存目录。规则：
+        /// 1) 基础路径 baseDir 为空 → 视为配置缺失，打点名错误日志并返回 null（调用方据此跳过该视频，而非抛 ArgumentNullException）；
+        /// 2) 其余各段为 null/空白 → 兜底为 "未知"，保证 Path.Combine 永不收到 null。
+        /// </summary>
+        /// <param name="baseDir">基础保存路径（如 SavePath/FavSavePath/UpSavePath/MixPath/SeriesPath）</param>
+        /// <param name="baseFieldDesc">基础路径字段的中文描述，用于错误日志点名</param>
+        /// <param name="cookie">用于日志显示用户名</param>
+        /// <param name="segments">基础路径之后的各级子目录段</param>
+        /// <returns>拼接后的目录；基础路径缺失时返回 null</returns>
+        protected string SafeCombine(string baseDir, string baseFieldDesc, DouyinCookie cookie, params string[] segments)
+        {
+            if (string.IsNullOrWhiteSpace(baseDir))
+            {
+                Log.Error($"[{cookie?.UserName}][{VideoType.GetDesc()}]-保存目录[{baseFieldDesc}]未配置（为空），请在配置页填写该路径；本视频已跳过。");
+                return null;
+            }
+            var parts = new List<string>(segments.Length + 1) { baseDir };
+            foreach (var s in segments)
+                parts.Add(string.IsNullOrWhiteSpace(s) ? "未知" : s);
+            return Path.Combine(parts.ToArray());
         }
 
         /// <summary>
@@ -744,6 +773,8 @@ namespace dy.net.job
             }
             // 创建保存文件夹
             var saveFolder = CreateSaveFolder(cookie, item, config, followed, cate);
+            // 保存目录创建失败（如路径未配置）则跳过该视频，避免后续 Path.Combine 抛异常
+            if (string.IsNullOrWhiteSpace(saveFolder)) return null;
             // 获取视频文件名
             var fileName = GetVideoFileName(cookie, item, config, cate);
             // 拼接视频保存路径
@@ -803,6 +834,8 @@ namespace dy.net.job
         {
             // 创建保存文件夹
             var saveFolder = CreateSaveFolder(cookie, item, config, followed, cate);
+            // 保存目录创建失败（如路径未配置）则跳过该视频
+            if (string.IsNullOrWhiteSpace(saveFolder)) return null;
             // 获取视频文件名
             //var fileName = DouyinFileNameHelper.SanitizeLinuxFileName(item.Desc, item.AwemeId) + ".mp4";
 
@@ -923,6 +956,8 @@ namespace dy.net.job
                 var fileNamefolder = string.Empty;
 
                 fileNamefolder = CreateSaveFolder(cookie, item, config, followed, cate);
+                // 保存目录创建失败（如路径未配置）则跳过该图文合成
+                if (string.IsNullOrWhiteSpace(fileNamefolder)) return null;
 
                 if (!Directory.Exists(fileNamefolder)) Directory.CreateDirectory(fileNamefolder);
 
