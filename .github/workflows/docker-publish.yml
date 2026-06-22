@@ -1,0 +1,67 @@
+name: Build and Push Docker image
+
+# 推送到当前开发分支或打 v* tag 时，自动构建并推送镜像到 Docker Hub。
+on:
+  push:
+    branches:
+      - improve/dysync-refactor
+    tags:
+      - 'v*'
+  workflow_dispatch: {}   # 也支持在 Actions 页面手动触发
+
+env:
+  # 镜像仓库名（命名空间用 Docker Hub 用户名）。如需自定义仓库名改这里即可。
+  IMAGE_NAME: dysync
+  # 多架构：如只需 amd64、想加快构建，可删掉 ,linux/arm64
+  PLATFORMS: linux/amd64,linux/arm64
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU (多架构构建需要)
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Extract metadata (tags, labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}
+          # 生成的标签：
+          #  - latest    （本工作流仅在开发分支/tag 触发，故 latest 即最新一次构建，匹配线上 :latest 部署）
+          #  - 分支名     （如 improve-dysync-refactor）
+          #  - 短 commit  （如 sha-9d9fed3，便于回滚定位）
+          #  - 语义版本   （打 v1.2.3 tag 时生成 1.2.3 / 1.2 等）
+          tags: |
+            type=raw,value=latest
+            type=ref,event=branch
+            type=sha,format=short
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile.ci
+          platforms: ${{ env.PLATFORMS }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # 用 GitHub Actions 缓存加速重复构建
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

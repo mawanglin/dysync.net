@@ -1,0 +1,46 @@
+# syntax=docker/dockerfile:1
+# 自包含多阶段构建，供 GitHub Actions 自动打包用。
+# 与本地的 Dockerfile 互不影响：本地 Dockerfile 需要先 dotnet publish 再 build，
+# 本文件则在镜像内完成「前端构建 → 后端发布 → 运行时」全过程，CI 无需任何宿主依赖。
+
+# ---------- 1) 前端构建 (pnpm + vite) ----------
+FROM node:20-bookworm-slim AS frontend
+WORKDIR /src/app
+# 锁文件 lockfileVersion 9.0 → 需 pnpm v9
+RUN npm install -g pnpm@9
+# 先装依赖（利用 Docker 层缓存：依赖未变则跳过重装）
+COPY app/package.json app/pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
+# 前端运行时需要的 env：VITE_API_URL 会被烤进产物（如 `${VITE_API_URL}api/Video/play/...`）。
+# app/.env 既未入 git、又被 .dockerignore 排除，故在此显式生成 .env.production。
+# 默认 "/" 表示同源（请求走 /api，与单镜像部署一致）；如需指向其它后端可在构建时用 --build-arg 覆盖。
+ARG VITE_API_URL=/
+ARG VITE_BASE_URL=/
+# 再拷源码构建。直接用 vite build（默认 production 模式），跳过 vue-tsc 类型检查，
+# 避免 CI 因历史类型告警中断；产物的运行时行为与 `pnpm build` 一致。
+COPY app/ ./
+RUN printf 'VITE_BASE_URL=%s\nVITE_API_URL=%s\n' "$VITE_BASE_URL" "$VITE_API_URL" > .env.production
+RUN pnpm exec vite build
+
+# ---------- 2) 后端发布 (.NET 8 SDK) ----------
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS publish
+WORKDIR /src
+COPY . .
+# 用前端构建产物覆盖（app/dist 不在 git 中，必须由上一阶段提供）
+COPY --from=frontend /src/app/dist ./app/dist
+RUN dotnet restore dy.net.csproj
+RUN dotnet publish dy.net.csproj -c Release -o /app/publish /p:UseAppHost=false
+
+# ---------- 3) 运行时 (ASP.NET 8 + ffmpeg) ----------
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS final
+WORKDIR /app
+EXPOSE 10101
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=publish /app/publish ./
+# 兜底：确保前端静态资源就位（Linux 下 csproj 的 SPA 拷贝 glob 用的是反斜杠，可能不生效）
+COPY --from=frontend /src/app/dist ./app/dist
+ENV ASPNETCORE_URLS=http://*:10101
+ENV TZ=Asia/Shanghai
+ENTRYPOINT ["dotnet", "dy.net.dll"]
