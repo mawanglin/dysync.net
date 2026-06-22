@@ -128,7 +128,14 @@ namespace dy.net
             services.AddSnowFlakeId(options => options.WorkId = new Random().Next(1, 100));
 
             // MVC控制器+异常拦截器
-            services.AddControllers().AddGlobalExceptionFilter();
+            services.AddControllers(options =>
+            {
+                // 全局“默认拒绝”：所有控制器 action 默认要求登录（标了 [AllowAnonymous] 的豁免）。
+                // 用 MVC AuthorizeFilter 而非 AuthorizationOptions.FallbackPolicy——后者会作用于
+                // endpoint 为空的请求（静态文件 / SPA），导致前端 index.html、assets 全部被 401，前端打不开。
+                // 本过滤器只作用于控制器 action，对控制器的鉴权效果与 FallbackPolicy 等价，但不影响静态资源。
+                options.Filters.Add(new Microsoft.AspNetCore.Mvc.Authorization.AuthorizeFilter());
+            }).AddGlobalExceptionFilter();
 
             // HTTP客户端
             services.AddHttpClients();

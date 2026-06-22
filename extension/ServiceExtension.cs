@@ -237,12 +237,11 @@ namespace dy.net.extension
                 };
             });
 
-            services.AddAuthorization(options =>
-            {
-                options.FallbackPolicy = new AuthorizationPolicyBuilder()
-                    .RequireAuthenticatedUser()
-                    .Build();
-            });
+            // 注：不再使用 options.FallbackPolicy 做全局“默认拒绝”——FallbackPolicy 会作用于
+            // endpoint 为空的请求（静态文件 / SPA），导致前端 index.html 被 401。
+            // 控制器层面的“默认拒绝”改由 Program.cs 中 AddControllers 的全局 AuthorizeFilter 实现，
+            // 它只作用于控制器 action，不影响静态资源；二者对控制器鉴权效果等价。
+            services.AddAuthorization();
         }
 
         /// <summary>
