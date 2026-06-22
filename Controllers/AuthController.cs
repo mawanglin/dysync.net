@@ -31,6 +31,7 @@ namespace dy.net.Controllers
         /// <param name="user"></param>
         /// <returns></returns>
         [Authorize]
+        [AllowWhenPasswordChangeRequired]
         [HttpPost]
         public async Task<IActionResult> UpdatePwd(UpdatePwdRequest user)
         {
@@ -43,6 +44,7 @@ namespace dy.net.Controllers
         /// 获取头像
         /// </summary>
         /// <returns></returns>
+        [AllowWhenPasswordChangeRequired]
         [HttpGet]
         public async Task<IActionResult> GetUserAvatar()
         {
@@ -84,9 +86,12 @@ namespace dy.net.Controllers
                             user.Password = PasswordUtil.Hash(loginUserInfo.Password);
                             await _userService.UpdateUser(user);
                         }
-                        var tokenString = GenerateJwtToken(user.UserName);
-                        // mustChangePwd：默认凭据首登时为 true，前端据此提示立即改密。
-                        return Ok(new { code = 0, erro = "", token = tokenString, expires = 24 * 60 * 60 * 1000, data = user.UserName, mustChangePwd = user.MustChangePwd });
+                        var tokenString = GenerateJwtToken(user.UserName, user.MustChangePwd);
+                        // mustChangePwd：默认凭据首登时为 true，前端据此提示立即改密；
+                        // 同时 token 内置 must_change_pwd claim，服务端门控（PasswordChangeGateMiddleware）
+                        // 会拦截改密以外的一切端点，确保不仅是前端软提示。
+                        // expires 与 token 实际有效期（7 天）对齐，避免前端按 24h 误判。
+                        return Ok(new { code = 0, erro = "", token = tokenString, expires = 7 * 24 * 60 * 60 * 1000, data = user.UserName, mustChangePwd = user.MustChangePwd });
                     }
                     else
                     {
@@ -97,13 +102,16 @@ namespace dy.net.Controllers
         }
 
 
-        private static string GenerateJwtToken(string username)
+        private static string GenerateJwtToken(string username, bool mustChangePwd = false)
         {
-            var claims = new[]
+            var claims = new List<Claim>
             {
                 new Claim(ClaimTypes.Name, username),
                 new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
              };
+            // 默认凭据未改密的会话写入门控 claim，由 PasswordChangeGateMiddleware 强制拦截。
+            if (mustChangePwd)
+                claims.Add(new Claim(PasswordChangeClaim.Type, PasswordChangeClaim.TrueValue));
             var key = new SymmetricSecurityKey(JwtKeyProvider.GetKeyBytes());
             var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 

@@ -57,5 +57,32 @@ namespace dy.net.Tests
         {
             Assert.False(NetworkGuard.IsPrivateOrLoopback(null));
         }
+
+        /// <summary>
+        /// IsLocalToolRequest：内网/本机 + 无转发头 → 放行；任何情况下出现转发头 → 拒绝
+        /// （堵住同机反向代理后 RemoteIpAddress 恒为 loopback/LAN 的门控绕过）。
+        /// </summary>
+        [Theory]
+        // 内网直连（无转发头）→ 放行
+        [InlineData("192.168.1.100", false, true)]
+        [InlineData("127.0.0.1", false, true)]
+        [InlineData("10.0.0.5", false, true)]
+        // 内网但带转发头（典型公网经代理）→ 拒绝
+        [InlineData("127.0.0.1", true, false)]
+        [InlineData("192.168.1.100", true, false)]
+        [InlineData("10.0.0.5", true, false)]
+        // 公网无论是否带转发头 → 拒绝
+        [InlineData("8.8.8.8", false, false)]
+        [InlineData("8.8.8.8", true, false)]
+        public void IsLocalToolRequest_RequiresPrivateIpAndNoForwardedHeaders(string ip, bool hasForwarded, bool expected)
+        {
+            Assert.Equal(expected, NetworkGuard.IsLocalToolRequest(IPAddress.Parse(ip), hasForwarded));
+        }
+
+        [Fact]
+        public void IsLocalToolRequest_NullIp_IsFalse()
+        {
+            Assert.False(NetworkGuard.IsLocalToolRequest(null, false));
+        }
     }
 }

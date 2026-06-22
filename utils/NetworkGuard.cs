@@ -50,5 +50,14 @@ namespace dy.net.utils
 
             return false;
         }
+
+        /// <summary>
+        /// 匿名工具端点的来源门控：仅当请求「未携带任何反向代理转发头」且来源为内网/本机时放行。
+        /// dy.cookie.exe 直连本机/内网，不会带转发头；公网经反向代理的请求通常带
+        /// X-Forwarded-For / X-Real-IP / Forwarded 头，此时 RemoteIpAddress 会是代理的
+        /// loopback/LAN 地址 —— 若只看 IP 就会被绕过，故出现转发头一律拒绝。纯函数，便于测试。
+        /// </summary>
+        public static bool IsLocalToolRequest(IPAddress remoteIp, bool hasForwardedHeaders)
+            => !hasForwardedHeaders && IsPrivateOrLoopback(remoteIp);
     }
 }

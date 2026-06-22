@@ -193,9 +193,19 @@ namespace dy.net.Controllers
 
         /// <summary>
         /// 请求是否来自内网/本机（匿名工具端点的来源门控）。
+        /// 出现任一反向代理转发头即视为非直连工具请求并拒绝，堵住「同机代理后 RemoteIpAddress
+        /// 恒为 loopback/LAN」导致的门控绕过。
         /// </summary>
         private bool IsLocalToolRequest()
-            => NetworkGuard.IsPrivateOrLoopback(HttpContext.Connection.RemoteIpAddress);
+        {
+            var headers = HttpContext.Request.Headers;
+            bool hasForwardedHeaders =
+                headers.ContainsKey("X-Forwarded-For")
+                || headers.ContainsKey("X-Real-IP")
+                || headers.ContainsKey("Forwarded")
+                || headers.ContainsKey("X-Forwarded-Host");
+            return NetworkGuard.IsLocalToolRequest(HttpContext.Connection.RemoteIpAddress, hasForwardedHeaders);
+        }
 
 
         /// <summary>

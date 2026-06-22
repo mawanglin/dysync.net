@@ -184,6 +184,9 @@ namespace dy.net
             app.UseAuthentication();
             app.UseAuthorization();
 
+            // 强制首登改密门控：默认凭据未改密的会话只能访问改密相关端点（须在授权之后、端点之前）
+            app.UseMiddleware<dy.net.utils.PasswordChangeGateMiddleware>();
+
             // 配置文件上传路径
             //ConfigureUploadPath(app, isDevelopment);
 
