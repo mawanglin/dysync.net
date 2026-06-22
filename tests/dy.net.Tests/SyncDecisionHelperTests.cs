@@ -483,13 +483,34 @@ namespace dy.net.Tests
         private static DouyinCollectCate Cate(VideoTypeEnum cateType)
             => new DouyinCollectCate { CateType = cateType };
 
+        private static Aweme AwemeWithBitRatePlayAddr(string awemeId, string format, int height, int width)
+            => new Aweme
+            {
+                AwemeId = awemeId,
+                Video = new Video
+                {
+                    BitRate = new List<VideoBitRate>
+                    {
+                        new VideoBitRate
+                        {
+                            Format = format,
+                            PlayAddr = new PlayAddr { FileHash = "hash", Height = height, Width = width },
+                        },
+                    },
+                },
+            };
+
+        private static AppConfig EmptyTemplateConfig()
+            => new AppConfig { FullFollowedTitleTemplate = null };
+
         [Fact]
         public void BuildVideoFileName_CustomCollect_WithBitRate_UsesFormat()
         {
             var name = SyncDecisionHelper.BuildVideoFileName(
                 VideoTypeEnum.dy_custom_collect,
                 AwemeWithBitRateFormat("123", "webm"),
-                Cate(VideoTypeEnum.dy_custom_collect));
+                Cate(VideoTypeEnum.dy_custom_collect),
+                EmptyTemplateConfig());
             Assert.Equal("123.webm", name);
         }
 
@@ -499,7 +520,8 @@ namespace dy.net.Tests
             var name = SyncDecisionHelper.BuildVideoFileName(
                 VideoTypeEnum.dy_custom_collect,
                 AwemeWithVideoNull("123"),
-                Cate(VideoTypeEnum.dy_custom_collect));
+                Cate(VideoTypeEnum.dy_custom_collect),
+                EmptyTemplateConfig());
             Assert.Equal("123.mp4", name);
         }
 
@@ -509,7 +531,8 @@ namespace dy.net.Tests
             var name = SyncDecisionHelper.BuildVideoFileName(
                 VideoTypeEnum.dy_custom_collect,
                 AwemeWithBitRateNull("123"),
-                Cate(VideoTypeEnum.dy_custom_collect));
+                Cate(VideoTypeEnum.dy_custom_collect),
+                EmptyTemplateConfig());
             Assert.Equal("123.mp4", name);
         }
 
@@ -519,7 +542,8 @@ namespace dy.net.Tests
             var name = SyncDecisionHelper.BuildVideoFileName(
                 VideoTypeEnum.dy_series,
                 AwemeWithEpisode("123", 5),
-                cate: null);
+                cate: null,
+                EmptyTemplateConfig());
             Assert.Equal("S01E05.mp4", name);
         }
 
@@ -529,17 +553,19 @@ namespace dy.net.Tests
             var name = SyncDecisionHelper.BuildVideoFileName(
                 VideoTypeEnum.dy_mix,
                 AwemeWithEpisode("123", 12),
-                cate: null);
+                cate: null,
+                EmptyTemplateConfig());
             Assert.Equal("S01E12.mp4", name);
         }
 
         [Fact]
-        public void BuildVideoFileName_DefaultBranch_AwemeIdMp4_WhenNotCustomCollectAndNotEpisodic()
+        public void BuildVideoFileName_DefaultBranch_VideoNull_AwemeIdMp4_WhenTemplateEmpty()
         {
             var name = SyncDecisionHelper.BuildVideoFileName(
                 VideoTypeEnum.dy_follows,
                 AwemeWithId("123"),
-                cate: null);
+                cate: null,
+                EmptyTemplateConfig());
             Assert.Equal("123.mp4", name);
         }
 
@@ -549,8 +575,34 @@ namespace dy.net.Tests
             var name = SyncDecisionHelper.BuildVideoFileName(
                 VideoTypeEnum.dy_collects,
                 AwemeWithId("123"),
-                Cate(VideoTypeEnum.dy_collects));
+                Cate(VideoTypeEnum.dy_collects),
+                EmptyTemplateConfig());
             Assert.Equal("123.mp4", name);
+        }
+
+        [Fact]
+        public void BuildVideoFileName_DefaultBranch_EmptyTemplate_UsesBitRateFormat()
+        {
+            // pin master 行为：默认分支后缀取 BitRate.Format，而非固定 mp4
+            var name = SyncDecisionHelper.BuildVideoFileName(
+                VideoTypeEnum.dy_follows,
+                AwemeWithBitRatePlayAddr("123", "webm", 1080, 1920),
+                cate: null,
+                EmptyTemplateConfig());
+            Assert.Equal("123.webm", name);
+        }
+
+        [Fact]
+        public void BuildVideoFileName_DefaultBranch_WithTemplate_UsesGeneratedName()
+        {
+            // pin master 行为：FullFollowedTitleTemplate 非空时用 VideoTitleGenerator 生成主名
+            var item = AwemeWithBitRatePlayAddr("123", "webm", 1080, 1920);
+            item.Desc = "标题";
+            item.Author = new Author { Nickname = "作者" };
+            var config = new AppConfig { FullFollowedTitleTemplate = "vid_{id}" };
+            var name = SyncDecisionHelper.BuildVideoFileName(
+                VideoTypeEnum.dy_follows, item, cate: null, config);
+            Assert.Equal("vid_123.webm", name);
         }
 
         // ---- BuildVideoSaveFolderCandidates ----

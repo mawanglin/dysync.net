@@ -60,6 +60,10 @@ namespace dy.net.Controllers
         [HttpPost("add")]
         public async Task<IActionResult> AddFollow(DouyinFollowed followed)
         {
+            if (string.IsNullOrWhiteSpace(followed.mySelfId))
+            {
+                return ApiResult.Fail("请先配置抖音授权信息，抖音授权配置里面填写你的uid");
+            }
             var res = await _douyinFollowService.AddAsync(followed);
             return ApiResult.SuccOrFail(res, "", res ? "" : "添加失败,或者已存在相同secuid和uid");
         }

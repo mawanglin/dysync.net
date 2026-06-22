@@ -4,7 +4,7 @@ using dy.net.model.dto;
 using dy.net.model.entity;
 using dy.net.service;
 using dy.net.utils;
-using dy.sync.lib;
+using jzc.http.lib;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Newtonsoft.Json;
@@ -437,7 +437,7 @@ namespace dy.net.Controllers
 
         private static async Task<IActionResult> GetDockerTagVersions()
         {
-            var data = await DouyinHttpHelper.GetTenImage(Appsettings.Get("tagName"));
+            var data = await JianZhiChuHttpHelper.GetTenImage(Appsettings.Get("tagName"));
             if (data.IsSuccessStatusCode)
             {
                 var content = await data.Content.ReadAsStringAsync();

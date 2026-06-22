@@ -111,6 +111,17 @@ namespace dy.net.repository
                 return (0, 0, false);
             }
 
+
+            //处理list里面 Signature 字段 可能存在一些导致SQL无法执行的特殊字符，需要清洗一下
+            // ========== 新增：清洗 Signature 字段特殊字符 ==========
+            foreach (var item in followInfos)
+            {
+                if (!string.IsNullOrWhiteSpace(item.Signature))
+                {
+                    item.Signature = CleanSignature(item.Signature);
+                }
+            }
+
             try
             {
                 // 1. 提取当前批次的SecUid集合（去重）——在开启事务前判空，避免空批次泄漏未提交事务
@@ -268,6 +279,43 @@ namespace dy.net.repository
             }
 
             return true;
+        }
+
+
+        /// <summary>
+        /// 清洗签名字段，移除会导致SQL执行异常的特殊字符
+        /// </summary>
+        private string CleanSignature(string input,int maxLength=100)
+        {
+            if (string.IsNullOrWhiteSpace(input))
+                return string.Empty;
+
+            // 1. 移除所有不可见控制字符（ASCII 0-31、127）：空字符、换行、制表符、响铃等
+            // 如需保留换行/制表符，可放开注释里的判断条件
+            char[] validChars = input.Where(c =>
+            {
+                // if (c == '\n' || c == '\r' || c == '\t') return true; // 保留换行、回车、制表符
+                return !char.IsControl(c);
+            }).ToArray();
+
+            string result = new string(validChars);
+
+            // 2. 转义SQL单引号（SQL语法标准：单引号用双单引号转义，避免语句截断）
+            result = result.Replace("'", "''");
+
+            // 3. 去除首尾空白
+            result = result.Trim();
+
+            // 4. 可选：过滤反斜杠、空字节等其他高危字符（按需开启）
+            result = result.Replace("\\", string.Empty);
+            result = result.Replace("\0", string.Empty);
+
+            if (result.Length > maxLength)
+            {
+                result = result.Substring(0, maxLength);
+            }
+
+            return result;
         }
 
     }

@@ -1,3 +1,4 @@
+using ClockSnowFlake;
 using dy.net.model.dto;
 using dy.net.model.entity;
 using dy.net.model.response;
@@ -136,14 +137,19 @@ namespace dy.net.utils
         /// 从 DouyinBasicSyncJob.GetVideoFileName 抽出的纯文件名构造逻辑。
         /// 行为逐字保留：cate=custom_collect 用 BitRate.Format（或 mp4 兜底）；
         /// videoType=dy_series/dy_mix 且 MixInfo?.Statis?.CurrentEpisode 链非 null
-        /// → "S01E{D2}.mp4"；其余 → "{AwemeId}.mp4"。
-        /// 原方法 cookie/config 参数在 base body 中未引用，故 helper 签名不带这两项。
+        /// → "S01E{D2}.mp4"；其余默认分支按 BitRate.Format（无则 mp4）取后缀，
+        /// 并在 config.FullFollowedTitleTemplate 非空时用 VideoTitleGenerator 生成主名，
+        /// 否则用 "{AwemeId}"。
+        /// 原方法 cookie 参数在 base body 中未引用，故 helper 签名不带它；
+        /// config 在默认分支被引用（模板命名），故纳入签名。
         /// 抽象属性 VideoType 提升为 videoType 入参。
         /// 「TryParse 失败」分支在当前 model（MixStatis.CurrentEpisode 为 int）下不可达；
         /// 保留原代码不删，但不为其编写特征化测试。
+        /// 注意：默认分支「图片合成视频」子分支用 IdGener.GetGuid() 生成 FileHash，
+        /// 该值仅在模板含 {FileHash} 时影响输出，引入非确定性，逐字保留 master 行为。
         /// 由特征化测试 SyncDecisionHelperTests 锁定当前行为。
         /// </summary>
-        public static string BuildVideoFileName(VideoTypeEnum videoType, Aweme item, DouyinCollectCate cate)
+        public static string BuildVideoFileName(VideoTypeEnum videoType, Aweme item, DouyinCollectCate cate, AppConfig config)
         {
             if (cate != null && cate.CateType == VideoTypeEnum.dy_custom_collect)
             {
@@ -165,7 +171,54 @@ namespace dy.net.utils
                     // 容错：如果转换失败，使用原始值（避免程序报错）
                     return $"S01E{item.MixInfo.Statis.CurrentEpisode}.mp4";
                 }
-                return $"{item.AwemeId}.mp4";
+                else
+                {
+                    string Format = "mp4";
+                    string FileHash = "";
+                    string Height = "";
+                    string Width = "";
+
+                    if (item.Video != null && item.Video.BitRate != null)
+                    {
+                        var bitrate = item.Video.BitRate.FirstOrDefault();
+                        Format = bitrate.Format;
+                        FileHash = bitrate.PlayAddr.FileHash;
+                        Height = bitrate.PlayAddr.Height.ToString();
+                        Width = bitrate.PlayAddr.Width.ToString();
+                    }
+                    else
+                    {
+                        //图片合成视频，参数要自己写。
+                        var image = item.Images?.FirstOrDefault();
+                        if (image != null)
+                        {
+                            FileHash = IdGener.GetGuid().ToLower().Replace("-", "");//使用随机值，避免重复
+                            Height = image.Height.ToString();
+                            Width = image.Width.ToString();
+                        }
+                    }
+
+                    string fileName;
+                    if (!string.IsNullOrWhiteSpace(config.FullFollowedTitleTemplate))
+                    {
+                        var fullName = VideoTitleGenerator.Generate(config.FullFollowedTitleTemplate, new VideoTitleDataTemplate
+                        {
+                            FileHash = FileHash,
+                            Id = item.AwemeId,
+                            ReleaseTime = DateTimeUtil.Convert10BitTimestamp(item.CreateTime),
+                            Resolution = $"{Width}×{Height}",
+                            VideoTitle = DouyinFileNameHelper.SanitizeLinuxFileName(item.Desc, item.AwemeId),
+                            Author = item.Author.Nickname
+                        });
+
+                        fileName = $"{fullName}.{Format}";
+                    }
+                    else
+                    {
+                        fileName = $"{item.AwemeId}.{Format}";
+                    }
+                    return fileName;
+                }
             }
         }
 

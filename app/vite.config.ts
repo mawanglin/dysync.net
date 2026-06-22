@@ -22,7 +22,9 @@ const prodRollupOptions = {
     },
   },
 };
-// vite 配置
+// vite 配置 
+// net stop winnat
+// net start winnat
 export default ({ command, mode }) => {
   // 获取环境变量
   const env = loadEnv(mode, process.cwd());

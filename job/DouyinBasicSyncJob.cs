@@ -221,7 +221,7 @@ namespace dy.net.job
         /// <param name="cate"></param>
         /// <returns>生成的视频文件名</returns>
         protected virtual string GetVideoFileName(DouyinCookie cookie, Aweme item, AppConfig config, DouyinCollectCate cate)
-            => SyncDecisionHelper.BuildVideoFileName(VideoType, item, cate);
+            => SyncDecisionHelper.BuildVideoFileName(VideoType, item, cate, config);
         /// <summary>
         /// 获取作者头像保存的基础路径
         /// 子类必须实现此方法，指定头像的存储位置
@@ -520,6 +520,12 @@ namespace dy.net.job
                     }
                     else
                     {
+                        //2026-06-16 21:56:40 bug修复 ，之前会一直重复下载这个图片
+                        //判断如果文件路径="/" 说明是仅下载图片的记录，不处理，直接跳过也不用删除记录
+                        if(exitVideo.VideoUrl=="/"&& exitVideo.IsMergeVideo == 1)
+                        {
+                            continue;
+                        }
                         //文件不存在，直接删掉原始记录
                         await douyinVideoService.DeleteById(exitVideo.Id);
                     }
@@ -950,6 +956,7 @@ namespace dy.net.job
                     VideoHeight = height > 0 ? height : 1920, // 视频高度
                 };
 
+
                 // 执行图片合成视频操作
                 var mergeResult = await douyinMergeVideoService.MergeToVideo(cookie.Cookies, AppContext.BaseDirectory, reqParams, savePath, fileNamefolder, config.DownImageVideo, config.DownImage, config.DownMp3);
                 if (!mergeResult)
@@ -957,7 +964,6 @@ namespace dy.net.job
                     Log.Error($"[{cookie.UserName}][{VideoType.GetDesc()}]-图文视频-[{DouyinFileNameHelper.SanitizeLinuxFileName(item.Desc, item.AwemeId)}]合成失败!!!");
                     return null;
                 }
-
 
                 // 获取不带扩展名的完整路径
                 //string fullPathWithoutExtension = Path.Combine(Path.GetDirectoryName(savePath),Path.GetFileNameWithoutExtension(savePath) );
