@@ -50,6 +50,8 @@ namespace dy.net.job
         /// 收藏夹、短剧、合集
         /// </summary>
         private readonly DouyinCollectCateService douyinCollectCateService;
+        /// <summary>同步运行状态中枢（进度/取消）</summary>
+        protected readonly SyncRunState syncRunState;
         /// <summary>
         /// 随机数生成器，用于生成随机延迟，模拟人类操作
         /// </summary>
@@ -105,8 +107,10 @@ namespace dy.net.job
             DouyinCommonService douyinCommonService,
             DouyinFollowService douyinFollowService,
             DouyinMergeVideoService douyinMergeVideoService,
-            DouyinCollectCateService douyinCollectCateService)
+            DouyinCollectCateService douyinCollectCateService,
+            SyncRunState syncRunState)
         {
+            this.syncRunState = syncRunState;
             this.douyinCookieService = douyinCookieService ?? throw new ArgumentNullException(nameof(douyinCookieService));
             this.douyinHttpClientService = douyinHttpClientService ?? throw new ArgumentNullException(nameof(douyinHttpClientService));
             this.douyinVideoService = douyinVideoService ?? throw new ArgumentNullException(nameof(douyinVideoService));
@@ -144,9 +148,18 @@ namespace dy.net.job
             Log.Debug($"[{VideoType.GetDesc()}]共发现{cookies.Count}个有效Cookie，同步开始...");
 
             // 遍历每个有效的Cookie，执行同步
-            foreach (var cookie in cookies)
+            syncRunState.RegisterStart(VideoType, cookies.FirstOrDefault()?.UserName ?? "", DateTime.Now);
+            try
             {
-                await ProcessSyncUserCookie(cookie, config);
+                foreach (var cookie in cookies)
+                {
+                    syncRunState.SetCurrentCookie(VideoType, cookie.UserName);
+                    await ProcessSyncUserCookie(cookie, config);
+                }
+            }
+            finally
+            {
+                syncRunState.RegisterFinish(VideoType);
             }
         }
 
@@ -387,6 +400,10 @@ namespace dy.net.job
 
 
             }
+            catch (OperationCanceledException)
+            {
+                Log.Debug($"[{cookie.UserName}][{VideoType.GetDesc()}]已停止同步（用户触发）");
+            }
             catch (Exception ex)
             {
                 Log.Error(ex, $"[{cookie.UserName}][{VideoType.GetDesc()}]同步出错!!!,{ex.StackTrace}");
@@ -424,6 +441,8 @@ namespace dy.net.job
             // 循环获取视频数据
             while (hasMore)
             {
+                // 协作式取消：用户点了停止则中止翻页（当前已下载的保留）
+                if (syncRunState.Token.IsCancellationRequested) break;
                 // 获取视频数据
                 var data = await FetchVideoData(cookie, cursor, followed, cate);
                 if (data == null || data.AwemeList == null || !data.AwemeList.Any())
@@ -461,8 +480,15 @@ namespace dy.net.job
                 {
                     break;
                 }
-                //随机等待
-                await Task.Delay(_random.Next(2, 10) * 1000);
+                //随机等待（可被停止打断）
+                try
+                {
+                    await Task.Delay(_random.Next(2, 10) * 1000, syncRunState.Token);
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
             }
 
             return (syncCount, cursor, hasMore);
@@ -495,8 +521,12 @@ namespace dy.net.job
         {
             int syncCount = 0;
             var videos = new List<DouyinVideo>();
+            syncRunState.SetPageTotal(VideoType, data.AwemeList.Count);
             foreach (var item in data.AwemeList)
             {
+                // 协作式取消：下完当前视频后、开始下一条前停止
+                if (syncRunState.Token.IsCancellationRequested) break;
+                syncRunState.UpdateCurrentVideo(VideoType, item.Desc);
                 //if (item.AwemeId != "7321309610927770930")
                 //{
                 //    continue;
@@ -571,6 +601,7 @@ namespace dy.net.job
                 {
                     videos.Add(video);
                     syncCount++;
+                    syncRunState.OnDownloaded(VideoType, true, item.Desc, DateTime.Now);
 
                     if (syncCount + syncCount1 >= config.BatchCount)
                     {

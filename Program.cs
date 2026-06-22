@@ -137,6 +137,9 @@ namespace dy.net
                 options.Filters.Add(new Microsoft.AspNetCore.Mvc.Authorization.AuthorizeFilter());
             }).AddGlobalExceptionFilter();
 
+            // 同步运行状态中枢（所有同步作业与控制器共用，单例）
+            services.AddSingleton<dy.net.service.SyncRunState>();
+
             // HTTP客户端
             services.AddHttpClients();
 
