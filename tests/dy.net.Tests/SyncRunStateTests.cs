@@ -86,15 +86,19 @@ namespace dy.net.Tests
         }
 
         [Fact]
-        public void Snapshot_when_idle_has_no_running_types()
+        public void Finished_type_persists_in_snapshot_with_endedAt()
         {
             var s = new SyncRunState();
             s.RegisterStart(VideoTypeEnum.dy_collects, "Zoe", T0);
-            s.RegisterFinish(VideoTypeEnum.dy_collects, T0);
-            var snap = s.GetSnapshot(T0.AddSeconds(1));
+            s.OnDownloaded(VideoTypeEnum.dy_collects, true, "A", T0);
+            s.RegisterFinish(VideoTypeEnum.dy_collects, T0.AddSeconds(10));
+
+            var snap = s.GetSnapshot(T0.AddSeconds(20));
             Assert.False(snap.Running);
-            Assert.Empty(snap.Types);
-            Assert.Equal(0, snap.ElapsedSec);
+            var t = Assert.Single(snap.Types);
+            Assert.False(t.Running);
+            Assert.Equal(1, t.Downloaded);
+            Assert.Equal(T0.AddSeconds(10), t.EndedAt);
         }
 
         [Fact]
@@ -112,55 +116,53 @@ namespace dy.net.Tests
         }
 
         [Fact]
-        public void LastRun_frozen_when_batch_finishes_with_per_type_detail()
+        public void NonOverlapping_types_each_keep_their_own_row()
         {
             var s = new SyncRunState();
             s.RegisterStart(VideoTypeEnum.dy_collects, "Zoe", T0);
             s.OnDownloaded(VideoTypeEnum.dy_collects, true, "A", T0);
-            s.OnDownloaded(VideoTypeEnum.dy_collects, false, "B", T0);
-            s.RegisterFinish(VideoTypeEnum.dy_collects, T0.AddSeconds(10));
+            s.RegisterFinish(VideoTypeEnum.dy_collects, T0.AddSeconds(5));
+            s.RegisterStart(VideoTypeEnum.dy_favorite, "Zoe", T0.AddSeconds(6));
+            s.OnDownloaded(VideoTypeEnum.dy_favorite, true, "B", T0.AddSeconds(6));
+            s.RegisterFinish(VideoTypeEnum.dy_favorite, T0.AddSeconds(8));
 
-            var snap = s.GetSnapshot(T0.AddSeconds(20));
+            var snap = s.GetSnapshot(T0.AddSeconds(9));
             Assert.False(snap.Running);
-            Assert.NotNull(snap.LastRun);
-            Assert.Equal(T0.AddSeconds(10), snap.LastRun.EndedAt);
-            var t = Assert.Single(snap.LastRun.Types);
-            Assert.Equal("dy_collects", t.Type);
-            Assert.Equal(1, t.Downloaded);
-            Assert.Equal(1, t.Failed);
+            Assert.Equal(2, snap.Types.Count);
+            Assert.All(snap.Types, t => Assert.False(t.Running));
+            Assert.Contains(snap.Types, t => t.Type == "dy_collects" && t.Downloaded == 1);
+            Assert.Contains(snap.Types, t => t.Type == "dy_favorite" && t.Downloaded == 1);
         }
 
         [Fact]
-        public void LastRun_aggregates_all_types_of_the_batch()
+        public void Running_and_finished_types_coexist_in_snapshot()
         {
             var s = new SyncRunState();
             s.RegisterStart(VideoTypeEnum.dy_collects, "Zoe", T0);
             s.RegisterStart(VideoTypeEnum.dy_favorite, "Zoe", T0);
-            s.OnDownloaded(VideoTypeEnum.dy_collects, true, "A", T0);
-            s.OnDownloaded(VideoTypeEnum.dy_favorite, true, "B", T0);
-            s.RegisterFinish(VideoTypeEnum.dy_collects, T0.AddSeconds(5));
-            Assert.Null(s.GetSnapshot(T0.AddSeconds(6)).LastRun);   // favorite 仍在跑，未冻结
-            s.RegisterFinish(VideoTypeEnum.dy_favorite, T0.AddSeconds(8));
+            s.RegisterFinish(VideoTypeEnum.dy_favorite, T0.AddSeconds(3));
 
-            var snap = s.GetSnapshot(T0.AddSeconds(9));
-            Assert.NotNull(snap.LastRun);
-            Assert.Equal(2, snap.LastRun.Types.Count);
+            var snap = s.GetSnapshot(T0.AddSeconds(4));
+            Assert.True(snap.Running);
+            Assert.Equal(2, snap.Types.Count);
+            Assert.Contains(snap.Types, t => t.Type == "dy_collects" && t.Running);
+            Assert.Contains(snap.Types, t => t.Type == "dy_favorite" && !t.Running);
         }
 
         [Fact]
-        public void New_batch_keeps_previous_lastRun_until_it_finishes()
+        public void Rerunning_a_type_refreshes_its_row()
         {
             var s = new SyncRunState();
             s.RegisterStart(VideoTypeEnum.dy_collects, "Zoe", T0);
+            s.OnDownloaded(VideoTypeEnum.dy_collects, true, "A", T0);
             s.RegisterFinish(VideoTypeEnum.dy_collects, T0.AddSeconds(5));
-            s.RegisterStart(VideoTypeEnum.dy_favorite, "Zoe", T0.AddMinutes(30));
-            var midSnap = s.GetSnapshot(T0.AddMinutes(30));
-            Assert.True(midSnap.Running);
-            Assert.NotNull(midSnap.LastRun);
-            Assert.Equal("dy_collects", Assert.Single(midSnap.LastRun.Types).Type);
-            s.RegisterFinish(VideoTypeEnum.dy_favorite, T0.AddMinutes(31));
-            var endSnap = s.GetSnapshot(T0.AddMinutes(32));
-            Assert.Equal("dy_favorite", Assert.Single(endSnap.LastRun.Types).Type);
+            s.RegisterStart(VideoTypeEnum.dy_collects, "Zoe", T0.AddMinutes(30));
+
+            var snap = s.GetSnapshot(T0.AddMinutes(30));
+            var t = Assert.Single(snap.Types);
+            Assert.True(t.Running);
+            Assert.Equal(0, t.Downloaded);
+            Assert.Null(t.EndedAt);
         }
     }
 }

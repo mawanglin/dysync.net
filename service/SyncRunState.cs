@@ -17,7 +17,6 @@ namespace dy.net.service
         private readonly Queue<SyncLogSnapshot> _logs = new();
         private CancellationTokenSource _cts;
         private DateTime? _manualTriggerAt;   // 防双击/防并发触发的短时闸
-        private LastRunSnapshot _lastRun;     // 最近一轮结束摘要（空闲时展示），重启清零
         private const int MaxLogs = 50;
         private static readonly TimeSpan ManualTriggerGuard = TimeSpan.FromSeconds(15);
 
@@ -56,12 +55,12 @@ namespace dy.net.service
                     _cts?.Dispose();
                     _cts = new CancellationTokenSource();
                     _manualTriggerAt = null;   // 批次已真正开始，清闸
-                    _types.Clear();            // 新批次：清掉上一轮残留类型（其摘要已冻结进 _lastRun）
                 }
                 _types[type] = new TypeProgress
                 {
                     Running = true,
                     StartedAt = now,
+                    EndedAt = null,
                     CookieName = cookieName ?? "",
                     Downloaded = 0,
                     Failed = 0,
@@ -79,24 +78,7 @@ namespace dy.net.service
                 {
                     p.Running = false;
                     p.CurrentTitle = "";
-                }
-                // 批次刚全部结束 → 冻结本轮每类型明细为上轮摘要
-                if (!_types.Values.Any(t => t.Running))
-                {
-                    _lastRun = new LastRunSnapshot
-                    {
-                        EndedAt = now,
-                        Types = _types.Select(kv => new TypeProgressSnapshot
-                        {
-                            Type = kv.Key.ToString(),
-                            Name = kv.Key.GetDesc(),
-                            Downloaded = kv.Value.Downloaded,
-                            Failed = kv.Value.Failed,
-                            PageTotal = kv.Value.PageTotal,
-                            CurrentTitle = "",
-                            CookieName = kv.Value.CookieName
-                        }).ToList()
-                    };
+                    p.EndedAt = now;
                 }
             }
         }
@@ -160,20 +142,21 @@ namespace dy.net.service
                     StartedAt = startedAt,
                     ElapsedSec = startedAt.HasValue ? (int)(now - startedAt.Value).TotalSeconds : 0,
                     Types = _types
-                        .Where(kv => kv.Value.Running)
+                        .OrderByDescending(kv => kv.Value.Running)   // 进行中的排前
                         .Select(kv => new TypeProgressSnapshot
                         {
                             Type = kv.Key.ToString(),
                             Name = kv.Key.GetDesc(),
+                            Running = kv.Value.Running,
                             Downloaded = kv.Value.Downloaded,
                             Failed = kv.Value.Failed,
                             PageTotal = kv.Value.PageTotal,
                             CurrentTitle = kv.Value.CurrentTitle,
-                            CookieName = kv.Value.CookieName
+                            CookieName = kv.Value.CookieName,
+                            EndedAt = kv.Value.EndedAt
                         })
                         .ToList(),
-                    RecentLogs = _logs.ToArray().Reverse().ToList(),   // 锁内拍快照再反转：最新在前
-                    LastRun = _lastRun
+                    RecentLogs = _logs.ToArray().Reverse().ToList()   // 锁内拍快照再反转：最新在前
                 };
             }
         }
@@ -182,6 +165,7 @@ namespace dy.net.service
         {
             public bool Running;
             public DateTime StartedAt;
+            public DateTime? EndedAt;
             public int Downloaded;
             public int Failed;
             public int PageTotal;
@@ -197,7 +181,6 @@ namespace dy.net.service
         [JsonPropertyName("elapsedSec")] public int ElapsedSec { get; set; }
         [JsonPropertyName("types")] public List<TypeProgressSnapshot> Types { get; set; } = new();
         [JsonPropertyName("recentLogs")] public List<SyncLogSnapshot> RecentLogs { get; set; } = new();
-        [JsonPropertyName("lastRun")] public LastRunSnapshot LastRun { get; set; }
     }
 
     public class TypeProgressSnapshot
@@ -209,6 +192,8 @@ namespace dy.net.service
         [JsonPropertyName("pageTotal")] public int PageTotal { get; set; }
         [JsonPropertyName("currentTitle")] public string CurrentTitle { get; set; }
         [JsonPropertyName("cookieName")] public string CookieName { get; set; }
+        [JsonPropertyName("running")] public bool Running { get; set; }
+        [JsonPropertyName("endedAt")] public DateTime? EndedAt { get; set; }
     }
 
     public class SyncLogSnapshot
@@ -217,9 +202,4 @@ namespace dy.net.service
         [JsonPropertyName("text")] public string Text { get; set; }
     }
 
-    public class LastRunSnapshot
-    {
-        [JsonPropertyName("endedAt")] public DateTime EndedAt { get; set; }
-        [JsonPropertyName("types")] public List<TypeProgressSnapshot> Types { get; set; } = new();
-    }
 }
