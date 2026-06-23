@@ -83,25 +83,6 @@
       </a-form>
     </div>
 
-    <!-- 同步进度面板（仅运行中显示） -->
-    <a-card v-if="syncStatus.running" size="small" class="sync-progress-card" style="margin-bottom:12px;">
-      <template #title>
-        同步进行中 · 已运行 {{ syncStatus.elapsedSec }} 秒
-      </template>
-      <div v-for="t in syncStatus.types" :key="t.type" style="margin-bottom:4px;">
-        <b>{{ t.name }}</b>
-        · 本轮已下载 {{ t.downloaded }} 条
-        · 失败 {{ t.failed }}
-        <span v-if="t.cookieName">· 账号 {{ t.cookieName }}</span>
-        <div style="color:#888;font-size:12px;">当前：{{ t.currentTitle || '—' }}</div>
-      </div>
-      <div v-if="syncStatus.recentLogs && syncStatus.recentLogs.length" style="margin-top:8px;max-height:160px;overflow:auto;border-top:1px solid #f0f0f0;padding-top:6px;">
-        <div v-for="(log, i) in syncStatus.recentLogs" :key="i" style="font-size:12px;color:#666;line-height:1.6;">
-          {{ log.text }}
-        </div>
-      </div>
-    </a-card>
-
     <!-- 已删除视频-抽屉 -->
 
     <a-drawer title="已删除视频" size="large" :visible="deleteVideoShow" @close="onDeleteVideoClose">

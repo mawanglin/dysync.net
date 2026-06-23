@@ -145,6 +145,18 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/pages/workplace/statics.vue'),
   },
   {
+    path: '/syncstatus',
+    name: '同步状态',
+    meta: {
+      icon: 'PlayCircleOutlined',
+      view: 'self',
+      target: '_self',
+      renderMenu: true,
+      cacheable: false,
+    },
+    component: () => import('@/pages/syncstatus/index.vue'),
+  },
+  {
     path: '/workplace',
     name: '同步记录',
     meta: {

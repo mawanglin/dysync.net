@@ -113,6 +113,7 @@
             </div>
           </div>
         </section>
+        <SyncStatusPanel :show-controls="true" />
       </div>
 
       <!-- 日志 Tab 内容 -->
@@ -362,6 +363,7 @@
 import { ref, computed, onMounted, onUnmounted, UnwrapRef, reactive, nextTick, watch } from 'vue';
 import { message, Spin, Empty, Tooltip, Modal, Form, FormInstance } from 'ant-design-vue';
 import { useApiStore } from '@/store';
+import SyncStatusPanel from '@/components/SyncStatusPanel.vue';
 import {
   CloseOutlined,
   SearchOutlined,
