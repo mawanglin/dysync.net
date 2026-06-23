@@ -13,29 +13,24 @@
       </a-button>
     </template>
 
-    <template v-if="status.running">
-      <div v-for="t in status.types" :key="t.type" style="margin-bottom:4px;">
-        <b>{{ t.name }}</b> · 本轮已下载 {{ t.downloaded }} 条 · 失败 {{ t.failed }}
+    <div v-if="status.types && status.types.length">
+      <div v-for="t in status.types" :key="t.type" style="margin-bottom:6px;">
+        <b>{{ t.name }}</b>
+        <a-tag :color="t.running ? 'processing' : 'default'" style="margin-left:6px;">
+          {{ t.running ? '进行中' : '已完成' }}
+        </a-tag>
+        · 本轮已下载 {{ t.downloaded }} 条 · 失败 {{ t.failed }}
         <span v-if="t.cookieName">· 账号 {{ t.cookieName }}</span>
-        <div style="color:#888;font-size:12px;">当前：{{ t.currentTitle || '—' }}</div>
+        <div v-if="t.running" style="color:#888;font-size:12px;">当前：{{ t.currentTitle || '—' }}</div>
+        <div v-else-if="t.endedAt" style="color:#aaa;font-size:12px;">完成于 {{ formatTime(t.endedAt) }}</div>
       </div>
       <div v-if="status.recentLogs && status.recentLogs.length"
            style="margin-top:8px;max-height:160px;overflow:auto;border-top:1px solid #f0f0f0;padding-top:6px;">
         <div v-for="(log, i) in status.recentLogs" :key="i"
              style="font-size:12px;color:#666;line-height:1.6;">{{ log.text }}</div>
       </div>
-    </template>
-
-    <template v-else>
-      <div v-if="status.lastRun">
-        <div style="margin-bottom:6px;color:#666;">上次同步 · 结束于 {{ formatTime(status.lastRun.endedAt) }}</div>
-        <div v-for="t in status.lastRun.types" :key="t.type" style="margin-bottom:4px;">
-          <b>{{ t.name }}</b> · 下载 {{ t.downloaded }} 条 · 失败 {{ t.failed }}
-          <span v-if="t.cookieName">· 账号 {{ t.cookieName }}</span>
-        </div>
-      </div>
-      <div v-else style="color:#999;">暂无同步记录</div>
-    </template>
+    </div>
+    <div v-else style="color:#999;">暂无同步记录</div>
   </a-card>
 </template>
 
@@ -47,7 +42,7 @@ import { SyncOutlined, CloseOutlined } from '@ant-design/icons-vue';
 
 defineProps<{ showControls?: boolean }>();
 
-const status = ref<any>({ running: false, elapsedSec: 0, types: [], recentLogs: [], lastRun: null });
+const status = ref<any>({ running: false, elapsedSec: 0, types: [], recentLogs: [] });
 const isTriggering = ref(false);
 const isStopping = ref(false);
 let timer: any = null;
