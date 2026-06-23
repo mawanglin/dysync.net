@@ -159,7 +159,7 @@ namespace dy.net.job
             }
             finally
             {
-                syncRunState.RegisterFinish(VideoType);
+                syncRunState.RegisterFinish(VideoType, DateTime.Now);
             }
         }
 
