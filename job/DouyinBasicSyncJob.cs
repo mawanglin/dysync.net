@@ -121,7 +121,7 @@ namespace dy.net.job
             this.douyinFollowService = douyinFollowService;
             this.douyinMergeVideoService = douyinMergeVideoService;
             this.douyinCollectCateService = douyinCollectCateService;
-            this.syncRunLogService = syncRunLogService;
+            this.syncRunLogService = syncRunLogService ?? throw new ArgumentNullException(nameof(syncRunLogService));
         }
 
         #endregion

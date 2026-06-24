@@ -483,7 +483,8 @@ namespace dy.net.Controllers
         public async Task<IActionResult> SyncRunLogs(string type, int page = 1, int size = 10)
         {
             if (string.IsNullOrWhiteSpace(type)) return ApiResult.Fail("type 必填");
-            var (list, total) = await syncRunLogService.GetPagedAsync(type, page < 1 ? 1 : page, size < 1 ? 10 : size);
+            var safeSize = size < 1 ? 10 : (size > 200 ? 200 : size);
+            var (list, total) = await syncRunLogService.GetPagedAsync(type, page < 1 ? 1 : page, safeSize);
             return ApiResult.Success(new { list, total });
         }
 
