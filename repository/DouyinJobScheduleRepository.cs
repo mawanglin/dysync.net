@@ -7,8 +7,7 @@ namespace dy.net.repository
     {
         public DouyinJobScheduleRepository(ISqlSugarClient db) : base(db) { }
 
-        public Task<List<DouyinJobSchedule>> GetAllAsync()
-            => Db.Queryable<DouyinJobSchedule>().ToListAsync();
+        // GetAllAsync 直接复用 BaseRepository<T> 的同名方法，无需在此重复定义。
 
         public async Task UpsertAsync(string type, string scheduleType, string expression, DateTime now)
         {
