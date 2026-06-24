@@ -130,6 +130,22 @@ export const useApiStore = defineStore('coreapi', () => {
 
     });
   }
+  // 修改任务周期
+  async function UpdateJobSchedule(param: object) {
+    return http.request<any, Response<any>>('/api/config/UpdateJobSchedule', 'post_json', param).then(r => {
+      return r;
+    }).finally(() => {
+
+    });
+  }
+  // 某任务执行记录分页
+  async function SyncRunLogs(type: string, page: number, size: number) {
+    return http.request<any, Response<any>>(`/api/config/SyncRunLogs?type=${encodeURIComponent(type)}&page=${page}&size=${size}`, 'get').then(r => {
+      return r;
+    }).finally(() => {
+
+    });
+  }
   //视频统计
   async function VideoStatics() {
     return http.request<any, Response<any>>('/api/video/statics', 'get').then(r => {
@@ -455,6 +471,8 @@ export const useApiStore = defineStore('coreapi', () => {
     StopSyncNow,
     SyncStatus,
     SyncJobs,
+    UpdateJobSchedule,
+    SyncRunLogs,
     VideoStatics,
     VideoPageList,
     CookiePageList,

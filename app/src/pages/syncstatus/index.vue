@@ -29,6 +29,8 @@
           <template v-else-if="column.key === 'op'">
             <a-button type="link" size="small" :disabled="anyRunning || !record.scheduled" @click="runOne(record)">立即执行</a-button>
             <a-button type="link" size="small" @click="openDetail(record)">详情</a-button>
+            <a-button type="link" size="small" @click="openSchedule(record)">改周期</a-button>
+            <a-button type="link" size="small" @click="openLogs(record)">执行记录</a-button>
           </template>
         </template>
       </a-table>
@@ -53,6 +55,35 @@
         </p>
       </template>
     </a-drawer>
+
+    <a-modal :visible="scheduleOpen" :title="scheduleTarget ? scheduleTarget.name + ' · 改周期' : '改周期'" @ok="submitSchedule" @cancel="scheduleOpen = false" :confirm-loading="scheduleSubmitting">
+      <a-form layout="vertical">
+        <a-form-item label="周期类型">
+          <a-radio-group v-model:value="scheduleForm.scheduleType">
+            <a-radio value="interval">间隔分钟</a-radio>
+            <a-radio value="cron">Cron 表达式</a-radio>
+          </a-radio-group>
+        </a-form-item>
+        <a-form-item :label="scheduleForm.scheduleType === 'cron' ? 'Cron 表达式' : '间隔分钟'">
+          <a-input v-model:value="scheduleForm.expression"
+                   :placeholder="scheduleForm.scheduleType === 'cron' ? '如 0 0/30 * * * ?' : '如 30'" />
+        </a-form-item>
+      </a-form>
+    </a-modal>
+
+    <a-modal :visible="logsOpen" :title="logsTarget ? logsTarget.name + ' · 执行记录' : '执行记录'" :footer="null" @cancel="logsOpen = false" width="640">
+      <a-table :data-source="logs" :columns="logColumns" row-key="id" size="small"
+               :pagination="{ current: logsPage, pageSize: logsSize, total: logsTotal, onChange: onLogsPage }">
+        <template #bodyCell="{ column, record }">
+          <template v-if="column.key === 'duration'">{{ durationSec(record) }} 秒</template>
+          <template v-else-if="column.key === 'status'">
+            <a-tag :color="record.status === 'stopped' ? 'warning' : 'success'">{{ record.status === 'stopped' ? '被停止' : '完成' }}</a-tag>
+          </template>
+          <template v-else-if="column.key === 'started'">{{ formatTime(record.startedAt) }}</template>
+          <template v-else-if="column.key === 'ended'">{{ formatTime(record.endedAt) }}</template>
+        </template>
+      </a-table>
+    </a-modal>
   </div>
 </template>
 
@@ -145,6 +176,66 @@ const runOne = (record: any) => {
 };
 
 const openDetail = (record: any) => { detail.value = record; detailOpen.value = true; };
+
+// 改周期
+const scheduleOpen = ref(false);
+const scheduleTarget = ref<any>(null);
+const scheduleSubmitting = ref(false);
+const scheduleForm = ref<any>({ scheduleType: 'interval', expression: '' });
+const openSchedule = (record: any) => {
+  scheduleTarget.value = record;
+  scheduleForm.value = { scheduleType: 'interval', expression: '' };
+  scheduleOpen.value = true;
+};
+const submitSchedule = () => {
+  if (scheduleSubmitting.value) return;
+  scheduleSubmitting.value = true;
+  useApiStore().UpdateJobSchedule({
+    type: scheduleTarget.value.type,
+    scheduleType: scheduleForm.value.scheduleType,
+    expression: scheduleForm.value.expression,
+  })
+    .then((res) => {
+      if (res.code === 0) { message.success(res.message || '周期已更新'); scheduleOpen.value = false; refresh(); }
+      else message.error(res.message || '更新失败');
+    })
+    .catch(() => message.error('更新失败，请检查网络'))
+    .finally(() => { scheduleSubmitting.value = false; });
+};
+
+// 执行记录
+const logsOpen = ref(false);
+const logsTarget = ref<any>(null);
+const logs = ref<any[]>([]);
+const logsPage = ref(1);
+const logsSize = ref(10);
+const logsTotal = ref(0);
+const logColumns = [
+  { title: '开始', key: 'started' },
+  { title: '结束', key: 'ended' },
+  { title: '耗时', key: 'duration' },
+  { title: '下载', dataIndex: 'downloaded', key: 'downloaded' },
+  { title: '失败', dataIndex: 'failed', key: 'failed' },
+  { title: '结果', key: 'status' },
+];
+const durationSec = (record: any) => {
+  try { return Math.max(0, Math.round((new Date(record.endedAt).getTime() - new Date(record.startedAt).getTime()) / 1000)); }
+  catch { return 0; }
+};
+const loadLogs = () => {
+  useApiStore().SyncRunLogs(logsTarget.value.type, logsPage.value, logsSize.value)
+    .then((res) => {
+      if (res.code === 0 && res.data) { logs.value = res.data.list || []; logsTotal.value = res.data.total || 0; }
+    })
+    .catch(() => {});
+};
+const openLogs = (record: any) => {
+  logsTarget.value = record;
+  logsPage.value = 1;
+  logsOpen.value = true;
+  loadLogs();
+};
+const onLogsPage = (p: number) => { logsPage.value = p; loadLogs(); };
 
 onMounted(() => { refresh(); timer = setInterval(refresh, 3000); });
 onBeforeUnmount(() => { if (timer) clearInterval(timer); });
