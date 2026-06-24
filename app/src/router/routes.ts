@@ -146,7 +146,7 @@ const routes: RouteRecordRaw[] = [
   },
   {
     path: '/syncstatus',
-    name: '同步状态',
+    name: '定时任务',
     meta: {
       icon: 'PlayCircleOutlined',
       view: 'self',

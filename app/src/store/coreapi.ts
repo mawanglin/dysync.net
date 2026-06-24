@@ -122,6 +122,14 @@ export const useApiStore = defineStore('coreapi', () => {
 
     });
   }
+  // 定时任务总览
+  async function SyncJobs() {
+    return http.request<any, Response<any>>('/api/config/SyncJobs', 'get').then(r => {
+      return r;
+    }).finally(() => {
+
+    });
+  }
   //视频统计
   async function VideoStatics() {
     return http.request<any, Response<any>>('/api/video/statics', 'get').then(r => {
@@ -446,6 +454,7 @@ export const useApiStore = defineStore('coreapi', () => {
     TriggerSyncNow,
     StopSyncNow,
     SyncStatus,
+    SyncJobs,
     VideoStatics,
     VideoPageList,
     CookiePageList,
