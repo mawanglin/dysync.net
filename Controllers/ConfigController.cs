@@ -466,6 +466,16 @@ namespace dy.net.Controllers
             return ApiResult.Success(jobs);
         }
 
+        /// <summary>修改某任务的执行周期（间隔分钟或 cron），即时生效且重启不丢。</summary>
+        [HttpPost("UpdateJobSchedule")]
+        public async Task<IActionResult> UpdateJobSchedule([FromBody] UpdateJobScheduleDto dto)
+        {
+            if (dto == null || !Enum.TryParse<VideoTypeEnum>(dto.Type, true, out var vt))
+                return ApiResult.Fail("参数无效");
+            var (ok, error) = await quartzJobService.UpdateJobScheduleAsync(vt, dto.ScheduleType, dto.Expression);
+            return ok ? ApiResult.Success(new { updated = true }, "周期已更新") : ApiResult.Fail(error);
+        }
+
         private void ReStartJob()
         {
             var config = commonService.GetConfig();

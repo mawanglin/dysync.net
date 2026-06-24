@@ -1,6 +1,7 @@
 ﻿using dy.net.job;
 using dy.net.model.dto;
 using dy.net.model.entity;
+using dy.net.repository;
 using dy.net.utils;
 using Quartz;
 using Serilog;
@@ -88,10 +89,13 @@ namespace dy.net.service
             }
         };
 
-        public DouyinQuartzJobService(ISchedulerFactory schedulerFactory,DouyinCookieService douyinCookieService)
+        private readonly DouyinJobScheduleRepository _scheduleRepository;
+
+        public DouyinQuartzJobService(ISchedulerFactory schedulerFactory, DouyinCookieService douyinCookieService, DouyinJobScheduleRepository scheduleRepository)
         {
             _schedulerFactory = schedulerFactory ?? throw new ArgumentNullException(nameof(schedulerFactory));
             this.douyinCookieService = douyinCookieService;
+            _scheduleRepository = scheduleRepository;
         }
 
        
@@ -129,6 +133,8 @@ namespace dy.net.service
                 var taskEnableConditions = GetTaskEnableConditions(validCookies);
 
                 // 5. 启动符合条件的定时任务
+                var customSchedules = (await _scheduleRepository.GetAllAsync())
+                    .ToDictionary(s => s.Type, s => s.Expression);
                 int successfullyStartedJobs = 0;
                 foreach (var jobKey in JobConfigs.Keys)
                 {
@@ -136,10 +142,11 @@ namespace dy.net.service
                     if (jobKey == VideoTypeEnum.dy_followuser_once)
                         continue;
 
-                    // 处理关注用户任务（固定60分钟执行频率）
+                    // 处理关注用户任务（默认60分钟，支持自定义周期）
                     if (jobKey == VideoTypeEnum.dy_followuser)
                     {
-                        bool startSuccess = await StartSingleJobAsync(jobKey, "60");
+                        var expr = customSchedules.TryGetValue(jobKey.ToString(), out var cs) ? cs : "60";
+                        bool startSuccess = await StartSingleJobAsync(jobKey, expr);
                         if (startSuccess) successfullyStartedJobs++;
                         continue;
                     }
@@ -158,7 +165,8 @@ namespace dy.net.service
 
                     if (isTaskEnabled)
                     {
-                        bool startSuccess = await StartSingleJobAsync(jobKey, taskIntervalExpression);
+                        var expr = customSchedules.TryGetValue(jobKey.ToString(), out var cs) ? cs : taskIntervalExpression;
+                        bool startSuccess = await StartSingleJobAsync(jobKey, expr);
                         if (startSuccess) successfullyStartedJobs++;
                     }
                 }
@@ -519,6 +527,28 @@ namespace dy.net.service
 
 
 
+
+        /// <summary>仅当该任务当前已调度时即时重排；未调度则不动（待启用时由 InitOrReStart 读自定义周期生效）。</summary>
+        public async Task<bool> RescheduleJobAsync(VideoTypeEnum type, string expression)
+        {
+            if (!JobConfigs.TryGetValue(type, out var cfg)) return false;
+            var scheduler = await _schedulerFactory.GetScheduler();
+            var jobKey = new JobKey(cfg.JobKey, DefaultJobGroup);
+            if (!await scheduler.CheckExists(jobKey)) return false;
+            return await StartJobAsync(type, expression);
+        }
+
+        /// <summary>校验 + 持久化 + 即时重排某任务周期。</summary>
+        public async Task<(bool ok, string error)> UpdateJobScheduleAsync(VideoTypeEnum type, string scheduleType, string expression)
+        {
+            if (type == VideoTypeEnum.dy_followuser_once)
+                return (false, "该任务不可配置");
+            var (ok, normalized, error) = JobScheduleValidator.ValidateAndNormalize(scheduleType, expression);
+            if (!ok) return (false, error);
+            await _scheduleRepository.UpsertAsync(type.ToString(), scheduleType, normalized, DateTime.Now);
+            await RescheduleJobAsync(type, normalized);
+            return (true, null);
+        }
 
         /// <summary>
         /// 任务启用条件模型
