@@ -8,6 +8,7 @@ using jzc.http.lib;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Newtonsoft.Json;
+using System.Linq;
 using System.Net;
 using System.Text.RegularExpressions;
 
@@ -440,6 +441,29 @@ namespace dy.net.Controllers
         public IActionResult SyncStatus()
         {
             return ApiResult.Success(syncRunState.GetSnapshot(DateTime.Now));
+        }
+
+        /// <summary>
+        /// 定时任务总览：调度信息（Quartz）+ 每类型最近一轮结果（SyncRunState）。
+        /// </summary>
+        [HttpGet("SyncJobs")]
+        public async Task<IActionResult> SyncJobs()
+        {
+            var jobs = await quartzJobService.GetJobsOverviewAsync();
+            var snap = syncRunState.GetSnapshot(DateTime.Now);
+            foreach (var job in jobs)
+            {
+                var t = snap.Types.FirstOrDefault(x => x.Type == job.Type);
+                if (t != null)
+                {
+                    job.Running = t.Running;
+                    job.Downloaded = t.Downloaded;
+                    job.Failed = t.Failed;
+                    job.CurrentTitle = t.CurrentTitle;
+                    job.EndedAt = t.EndedAt;
+                }
+            }
+            return ApiResult.Success(jobs);
         }
 
         private void ReStartJob()

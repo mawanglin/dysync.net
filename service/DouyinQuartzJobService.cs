@@ -308,6 +308,53 @@ namespace dy.net.service
         }
 
         /// <summary>
+        /// 读取所有可管理周期任务的调度总览（不含运行结果——由调用方合并 SyncRunState）。
+        /// 排除一次性任务 dy_followuser_once。
+        /// </summary>
+        public async Task<List<SyncJobOverview>> GetJobsOverviewAsync()
+        {
+            var result = new List<SyncJobOverview>();
+            var scheduler = await _schedulerFactory.GetScheduler();
+
+            foreach (var kv in JobConfigs)
+            {
+                if (kv.Key == VideoTypeEnum.dy_followuser_once) continue;
+
+                var cfg = kv.Value;
+                var triggerKey = new TriggerKey(cfg.TriggerKey, DefaultJobGroup);
+                var overview = new SyncJobOverview
+                {
+                    Type = kv.Key.ToString(),
+                    Name = kv.Key.GetDesc(),
+                    Scheduled = false,
+                    ScheduleDesc = "未启用",
+                    TriggerState = "未启用"
+                };
+
+                var trigger = await scheduler.GetTrigger(triggerKey);
+                if (trigger != null)
+                {
+                    overview.Scheduled = true;
+                    overview.NextFireTime = trigger.GetNextFireTimeUtc()?.LocalDateTime;
+                    overview.PrevFireTime = trigger.GetPreviousFireTimeUtc()?.LocalDateTime;
+
+                    bool isCron = trigger is ICronTrigger;
+                    string cronExpr = (trigger as ICronTrigger)?.CronExpressionString;
+                    int? simpleMinutes = trigger is ISimpleTrigger st
+                        ? (int)st.RepeatInterval.TotalMinutes
+                        : (int?)null;
+                    overview.ScheduleDesc = SyncJobScheduleDescriber.Describe(isCron, cronExpr, simpleMinutes);
+
+                    var state = await scheduler.GetTriggerState(triggerKey);
+                    overview.TriggerState = state.ToString();
+                }
+
+                result.Add(overview);
+            }
+            return result;
+        }
+
+        /// <summary>
         /// 移除所有已存在的任务（避免重复调度）
         /// </summary>
         private static async Task RemoveAllExistingJobs(IScheduler scheduler)
