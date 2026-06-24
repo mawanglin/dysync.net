@@ -455,6 +455,7 @@ namespace dy.net.utils
                 VideoTypeEnum.dy_custom_collect => "自定义收藏夹",
                 VideoTypeEnum.dy_mix => "合集",
                 VideoTypeEnum.dy_series => "短剧",
+                VideoTypeEnum.dy_followuser => "关注列表",
                 _ => string.Empty // 匹配所有未定义的枚举值，返回空字符串（替代原 default）
             };
         }
