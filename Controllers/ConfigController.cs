@@ -27,10 +27,11 @@ namespace dy.net.Controllers
         private readonly DouyinCookieService douyinCookieService;
         private readonly DouyinHttpClientService httpClientService;
         private readonly SyncRunState syncRunState;
+        private readonly DouyinSyncRunLogService syncRunLogService;
 
 
 
-        public ConfigController(DouyinCookieService dyCookieService, DouyinCommonService commonService, DouyinQuartzJobService quartzJobService, DouyinFollowService douyinFollowService, DouyinCookieService douyinCookieService, DouyinHttpClientService httpClientService, SyncRunState syncRunState)
+        public ConfigController(DouyinCookieService dyCookieService, DouyinCommonService commonService, DouyinQuartzJobService quartzJobService, DouyinFollowService douyinFollowService, DouyinCookieService douyinCookieService, DouyinHttpClientService httpClientService, SyncRunState syncRunState, DouyinSyncRunLogService syncRunLogService)
         {
             this.dyCookieService = dyCookieService;
             this.commonService = commonService;
@@ -39,6 +40,7 @@ namespace dy.net.Controllers
             this.douyinCookieService = douyinCookieService;
             this.httpClientService = httpClientService;
             this.syncRunState = syncRunState;
+            this.syncRunLogService = syncRunLogService;
         }
 
 
@@ -474,6 +476,15 @@ namespace dy.net.Controllers
                 return ApiResult.Fail("参数无效");
             var (ok, error) = await quartzJobService.UpdateJobScheduleAsync(vt, dto.ScheduleType, dto.Expression);
             return ok ? ApiResult.Success(new { updated = true }, "周期已更新") : ApiResult.Fail(error);
+        }
+
+        /// <summary>某任务的执行记录分页查询。</summary>
+        [HttpGet("SyncRunLogs")]
+        public async Task<IActionResult> SyncRunLogs(string type, int page = 1, int size = 10)
+        {
+            if (string.IsNullOrWhiteSpace(type)) return ApiResult.Fail("type 必填");
+            var (list, total) = await syncRunLogService.GetPagedAsync(type, page < 1 ? 1 : page, size < 1 ? 10 : size);
+            return ApiResult.Success(new { list, total });
         }
 
         private void ReStartJob()

@@ -52,6 +52,8 @@ namespace dy.net.job
         private readonly DouyinCollectCateService douyinCollectCateService;
         /// <summary>同步运行状态中枢（进度/取消）</summary>
         protected readonly SyncRunState syncRunState;
+        /// <summary>执行记录落库服务</summary>
+        protected readonly DouyinSyncRunLogService syncRunLogService;
         /// <summary>
         /// 随机数生成器，用于生成随机延迟，模拟人类操作
         /// </summary>
@@ -108,7 +110,8 @@ namespace dy.net.job
             DouyinFollowService douyinFollowService,
             DouyinMergeVideoService douyinMergeVideoService,
             DouyinCollectCateService douyinCollectCateService,
-            SyncRunState syncRunState)
+            SyncRunState syncRunState,
+            DouyinSyncRunLogService syncRunLogService)
         {
             this.syncRunState = syncRunState ?? throw new ArgumentNullException(nameof(syncRunState));
             this.douyinCookieService = douyinCookieService ?? throw new ArgumentNullException(nameof(douyinCookieService));
@@ -118,6 +121,7 @@ namespace dy.net.job
             this.douyinFollowService = douyinFollowService;
             this.douyinMergeVideoService = douyinMergeVideoService;
             this.douyinCollectCateService = douyinCollectCateService;
+            this.syncRunLogService = syncRunLogService;
         }
 
         #endregion
@@ -148,7 +152,8 @@ namespace dy.net.job
             Log.Debug($"[{VideoType.GetDesc()}]共发现{cookies.Count}个有效Cookie，同步开始...");
 
             // 遍历每个有效的Cookie，执行同步
-            syncRunState.RegisterStart(VideoType, cookies.FirstOrDefault()?.UserName ?? "", DateTime.Now);
+            var runStartedAt = DateTime.Now;
+            syncRunState.RegisterStart(VideoType, cookies.FirstOrDefault()?.UserName ?? "", runStartedAt);
             try
             {
                 foreach (var cookie in cookies)
@@ -159,7 +164,23 @@ namespace dy.net.job
             }
             finally
             {
-                syncRunState.RegisterFinish(VideoType, DateTime.Now);
+                var endedAt = DateTime.Now;
+                bool stopped = syncRunState.Token.IsCancellationRequested;
+                syncRunState.RegisterFinish(VideoType, endedAt);
+                // 落执行记录（失败不影响主流程）
+                try
+                {
+                    var snap = syncRunState.GetSnapshot(endedAt);
+                    var t = snap.Types.FirstOrDefault(x => x.Type == VideoType.ToString());
+                    await syncRunLogService.RecordAsync(
+                        VideoType, VideoType.GetDesc(), runStartedAt, endedAt,
+                        t?.Downloaded ?? 0, t?.Failed ?? 0,
+                        stopped ? "stopped" : "completed");
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, $"[{VideoType.GetDesc()}]记录执行历史失败");
+                }
             }
         }
 
