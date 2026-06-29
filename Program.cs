@@ -207,8 +207,25 @@ namespace dy.net
             // 生产环境启用SPA
             if (!environment.IsDevelopment())
             {
-                app.UseSpaStaticFiles();
-                app.UseSpa(spa => spa.Options.SourcePath = SpaSourcePath);
+                // 给 index.html（及任意 .html）加 no-cache，避免浏览器缓存旧 SPA 壳导致更新镜像后界面仍是旧的；
+                // 带 hash 的 js/css 文件名每次构建都变，保持默认长缓存即可。
+                Action<Microsoft.AspNetCore.StaticFiles.StaticFileResponseContext> noCacheForHtml = ctx =>
+                {
+                    if (ctx.File.Name.EndsWith(".html", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var headers = ctx.Context.Response.Headers;
+                        headers["Cache-Control"] = "no-cache, no-store, must-revalidate";
+                        headers["Pragma"] = "no-cache";
+                        headers["Expires"] = "0";
+                    }
+                };
+                app.UseSpaStaticFiles(new StaticFileOptions { OnPrepareResponse = noCacheForHtml });
+                app.UseSpa(spa =>
+                {
+                    spa.Options.SourcePath = SpaSourcePath;
+                    // UseSpa 回退返回 index.html（客户端路由）时也走 no-cache
+                    spa.Options.DefaultPageStaticFileOptions = new StaticFileOptions { OnPrepareResponse = noCacheForHtml };
+                });
             }
         }
 
