@@ -47,7 +47,10 @@ namespace dy.net.service.qrlogin
             await _page.GoToAsync(LoginUrl, new NavigationOptions
             {
                 WaitUntil = new[] { WaitUntilNavigation.Networkidle2 },
-                Timeout = 30000
+                Timeout = 30000,
+                // 显式给合法 referrerPolicy，规避 PuppeteerSharp 默认空值导致
+                // Chromium 报 "Protocol error (Page.navigate): Invalid referrerPolicy"
+                ReferrerPolicy = "unsafeUrl"
             });
             // 给登录弹层/二维码一点渲染时间
             await Task.Delay(2000);
@@ -87,7 +90,8 @@ namespace dy.net.service.qrlogin
             await _page.GoToAsync(ProfileUrl, new NavigationOptions
             {
                 WaitUntil = new[] { WaitUntilNavigation.Networkidle2 },
-                Timeout = 30000
+                Timeout = 30000,
+                ReferrerPolicy = "unsafeUrl"
             });
 
             var profile = new QrProfile();
