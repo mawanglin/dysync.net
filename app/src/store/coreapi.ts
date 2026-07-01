@@ -219,6 +219,19 @@ export const useApiStore = defineStore('coreapi', () => {
 
     });
   }
+
+  // ===== 扫码登录 =====
+  async function QrLoginStart() {
+    return http.request<any, Response<any>>('/api/qrlogin/start', 'post_json', {}).then(r => r);
+  }
+  async function QrLoginPoll(sessionId: string) {
+    return http
+      .request<any, Response<any>>('/api/qrlogin/poll?sessionId=' + encodeURIComponent(sessionId), 'get')
+      .then(r => r);
+  }
+  async function QrLoginCancel(sessionId: string) {
+    return http.request<any, Response<any>>('/api/qrlogin/cancel', 'post_json', { sessionId }).then(r => r);
+  }
   //follows
   async function FollowList(param: object) {
     return http.request<any, Response<any>>('/api/follow/paged', 'post_json', param).then(r => {
@@ -460,6 +473,9 @@ export const useApiStore = defineStore('coreapi', () => {
     AddFollow,
     CheckTag,
     deleteCookie,
+    QrLoginStart,
+    QrLoginPoll,
+    QrLoginCancel,
     UpdateConfig,
     apiGetConfig,
     apiUpdateConfig,
