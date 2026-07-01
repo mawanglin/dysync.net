@@ -13,6 +13,7 @@ namespace dy.net.Tests
         private sealed class FakeBrowser : IQrLoginBrowser
         {
             public QrLoginStatus Status = QrLoginStatus.Waiting;
+            public bool ThrowOnStatus = false;
             public bool ThrowOnProfile = false;
             public bool Disposed = false;
             public List<BrowserCookie> Cookies = new() { new BrowserCookie("sessionid", "s1", ".douyin.com") };
@@ -20,7 +21,8 @@ namespace dy.net.Tests
 
             public Task OpenLoginPageAsync() => Task.CompletedTask;
             public Task<byte[]> ScreenshotQrAsync() => Task.FromResult(new byte[] { 1, 2, 3 });
-            public Task<QrLoginStatus> GetLoginStatusAsync() => Task.FromResult(Status);
+            public Task<QrLoginStatus> GetLoginStatusAsync()
+                => ThrowOnStatus ? throw new InvalidOperationException("status fail") : Task.FromResult(Status);
             public Task<IReadOnlyList<BrowserCookie>> GetCookiesAsync() => Task.FromResult((IReadOnlyList<BrowserCookie>)Cookies);
             public Task<QrProfile> GetProfileAsync()
                 => ThrowOnProfile ? throw new InvalidOperationException("profile fail") : Task.FromResult(Profile);
@@ -43,20 +45,20 @@ namespace dy.net.Tests
             }
         }
 
-        private static (DouyinQrLoginService svc, Func<DateTime> _, Action<TimeSpan> advance) NewService(
+        private static (DouyinQrLoginService svc, Action<TimeSpan> advance) NewService(
             IQrLoginBrowserFactory factory)
         {
             var now = new DateTime(2026, 7, 1, 0, 0, 0, DateTimeKind.Utc);
             Func<DateTime> clock = () => now;
             var svc = new DouyinQrLoginService(factory, clock);
             void Advance(TimeSpan by) => now = now.Add(by);
-            return (svc, clock, Advance);
+            return (svc, Advance);
         }
 
         [Fact]
         public async Task Start_ReturnsSessionAndQr()
         {
-            var (svc, _, _) = NewService(new FakeFactory(new FakeBrowser()));
+            var (svc, _) = NewService(new FakeFactory(new FakeBrowser()));
 
             var r = await svc.StartAsync();
 
@@ -69,7 +71,7 @@ namespace dy.net.Tests
         {
             var first = new FakeBrowser();
             var second = new FakeBrowser();
-            var (svc, _, _) = NewService(new FakeFactory(first, second));
+            var (svc, _) = NewService(new FakeFactory(first, second));
 
             await svc.StartAsync();
             await svc.StartAsync();
@@ -81,7 +83,7 @@ namespace dy.net.Tests
         [Fact]
         public async Task Poll_UnknownId_ReturnsNotFound()
         {
-            var (svc, _, _) = NewService(new FakeFactory());
+            var (svc, _) = NewService(new FakeFactory());
             var r = await svc.PollAsync("nope");
             Assert.Equal("notfound", r.Status);
         }
@@ -90,7 +92,7 @@ namespace dy.net.Tests
         public async Task Poll_Waiting_ReturnsWaiting()
         {
             var b = new FakeBrowser { Status = QrLoginStatus.Waiting };
-            var (svc, _, _) = NewService(new FakeFactory(b));
+            var (svc, _) = NewService(new FakeFactory(b));
             var start = await svc.StartAsync();
 
             var r = await svc.PollAsync(start.SessionId);
@@ -103,7 +105,7 @@ namespace dy.net.Tests
         public async Task Poll_Success_ReturnsCookiesAndProfile_AndDisposes()
         {
             var b = new FakeBrowser { Status = QrLoginStatus.Success };
-            var (svc, _, _) = NewService(new FakeFactory(b));
+            var (svc, _) = NewService(new FakeFactory(b));
             var start = await svc.StartAsync();
 
             var r = await svc.PollAsync(start.SessionId);
@@ -114,7 +116,6 @@ namespace dy.net.Tests
             Assert.Equal("张三", r.UserName);
             Assert.Equal("uid1", r.MyUserId);
             Assert.True(b.Disposed);
-            // 成功后会话应被移除
             Assert.Equal("notfound", (await svc.PollAsync(start.SessionId)).Status);
         }
 
@@ -122,7 +123,7 @@ namespace dy.net.Tests
         public async Task Poll_ProfileThrows_DegradesToCookiesOnly()
         {
             var b = new FakeBrowser { Status = QrLoginStatus.Success, ThrowOnProfile = true };
-            var (svc, _, _) = NewService(new FakeFactory(b));
+            var (svc, _) = NewService(new FakeFactory(b));
             var start = await svc.StartAsync();
 
             var r = await svc.PollAsync(start.SessionId);
@@ -134,10 +135,22 @@ namespace dy.net.Tests
         }
 
         [Fact]
+        public async Task Poll_StatusThrows_ReturnsError()
+        {
+            var b = new FakeBrowser { ThrowOnStatus = true };
+            var (svc, _) = NewService(new FakeFactory(b));
+            var start = await svc.StartAsync();
+
+            var r = await svc.PollAsync(start.SessionId);
+
+            Assert.Equal("error", r.Status);
+        }
+
+        [Fact]
         public async Task Poll_AfterQrTtl_ReturnsExpired_AndDisposes()
         {
             var b = new FakeBrowser { Status = QrLoginStatus.Waiting };
-            var (svc, _, advance) = NewService(new FakeFactory(b));
+            var (svc, advance) = NewService(new FakeFactory(b));
             var start = await svc.StartAsync();
 
             advance(TimeSpan.FromMinutes(2).Add(TimeSpan.FromSeconds(1)));
@@ -151,7 +164,7 @@ namespace dy.net.Tests
         public async Task Cancel_DisposesAndSubsequentPollNotFound()
         {
             var b = new FakeBrowser();
-            var (svc, _, _) = NewService(new FakeFactory(b));
+            var (svc, _) = NewService(new FakeFactory(b));
             var start = await svc.StartAsync();
 
             await svc.CancelAsync(start.SessionId);
@@ -164,13 +177,27 @@ namespace dy.net.Tests
         public async Task SweepExpired_DisposesOldSessions()
         {
             var b = new FakeBrowser();
-            var (svc, _, advance) = NewService(new FakeFactory(b));
+            var (svc, advance) = NewService(new FakeFactory(b));
             await svc.StartAsync();
 
             advance(TimeSpan.FromMinutes(3).Add(TimeSpan.FromSeconds(1)));
             await svc.SweepExpiredAsync();
 
             Assert.True(b.Disposed);
+        }
+
+        [Fact]
+        public async Task SweepExpired_KeepsYoungSessions()
+        {
+            var b = new FakeBrowser();
+            var (svc, advance) = NewService(new FakeFactory(b));
+            var start = await svc.StartAsync();
+
+            advance(TimeSpan.FromMinutes(1));
+            await svc.SweepExpiredAsync();
+
+            Assert.False(b.Disposed);
+            Assert.Equal("waiting", (await svc.PollAsync(start.SessionId)).Status);
         }
     }
 }

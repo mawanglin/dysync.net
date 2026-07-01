@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using ClockSnowFlake;
 using dy.net.utils;
@@ -9,7 +10,8 @@ namespace dy.net.service.qrlogin
 {
     /// <summary>
     /// 扫码登录会话状态机。Singleton：跨 start/poll 请求持有会话。
-    /// 单会话约束：新 start 会取消并释放旧会话。浏览器用完即关。
+    /// 单会话约束：新 start 会取消并释放旧会话（并用 SemaphoreSlim 串行化，防并发下同时开两个浏览器）。
+    /// 浏览器用完即关。
     /// </summary>
     public sealed class DouyinQrLoginService
     {
@@ -26,15 +28,10 @@ namespace dy.net.service.qrlogin
         private readonly IQrLoginBrowserFactory _factory;
         private readonly Func<DateTime> _clock;
         private readonly ConcurrentDictionary<string, Session> _sessions = new();
+        private readonly SemaphoreSlim _startLock = new(1, 1);
 
-        // DI 用这个构造函数（Func<DateTime> 不在容器里，DI 会选参数最少且可解析的这个）
-        public DouyinQrLoginService(IQrLoginBrowserFactory factory)
-            : this(factory, () => DateTime.UtcNow)
-        {
-        }
-
-        // 测试用：注入时钟
-        public DouyinQrLoginService(IQrLoginBrowserFactory factory, Func<DateTime> clock)
+        // 单构造函数 + 可选时钟参数：DI 解析 factory 并对未注册的 clock 用默认值 null；测试直接传时钟。
+        public DouyinQrLoginService(IQrLoginBrowserFactory factory, Func<DateTime> clock = null)
         {
             _factory = factory ?? throw new ArgumentNullException(nameof(factory));
             _clock = clock ?? (() => DateTime.UtcNow);
@@ -42,39 +39,48 @@ namespace dy.net.service.qrlogin
 
         public async Task<QrStartResult> StartAsync()
         {
-            await CancelAllAsync(); // 单会话约束
-
-            var browser = await _factory.CreateAsync();
+            // 串行化启动，保证「单会话约束」在并发下也成立
+            await _startLock.WaitAsync();
             try
             {
-                await browser.OpenLoginPageAsync();
-                var png = await browser.ScreenshotQrAsync();
-                var id = IdGener.GetLong().ToString();
-                var now = _clock();
-                _sessions[id] = new Session { Id = id, Browser = browser, CreatedAt = now };
-                return new QrStartResult
+                await CancelAllAsync();
+
+                var browser = await _factory.CreateAsync();
+                try
                 {
-                    SessionId = id,
-                    QrImageBase64 = "data:image/png;base64," + Convert.ToBase64String(png),
-                    ExpiresAt = now + QrTtl
-                };
+                    await browser.OpenLoginPageAsync();
+                    var png = await browser.ScreenshotQrAsync();
+                    var id = IdGener.GetLong().ToString();
+                    var now = _clock();
+                    _sessions[id] = new Session { Id = id, Browser = browser, CreatedAt = now };
+                    return new QrStartResult
+                    {
+                        SessionId = id,
+                        QrImageBase64 = "data:image/png;base64," + Convert.ToBase64String(png),
+                        ExpiresAt = now + QrTtl
+                    };
+                }
+                catch
+                {
+                    await SafeDisposeAsync(browser);
+                    throw;
+                }
             }
-            catch
+            finally
             {
-                await SafeDisposeAsync(browser);
-                throw;
+                _startLock.Release();
             }
         }
 
         public async Task<QrPollResult> PollAsync(string sessionId)
         {
             if (string.IsNullOrWhiteSpace(sessionId) || !_sessions.TryGetValue(sessionId, out var s))
-                return new QrPollResult { Status = "notfound" };
+                return new QrPollResult { Status = StatusText(QrLoginStatus.NotFound) };
 
             if (_clock() - s.CreatedAt > QrTtl)
             {
                 await RemoveAndDisposeAsync(sessionId);
-                return new QrPollResult { Status = "expired" };
+                return new QrPollResult { Status = StatusText(QrLoginStatus.Expired) };
             }
 
             QrLoginStatus status;
@@ -89,31 +95,37 @@ namespace dy.net.service.qrlogin
             }
 
             if (status != QrLoginStatus.Success)
-                return new QrPollResult { Status = status.ToString().ToLowerInvariant() };
+                return new QrPollResult { Status = StatusText(status) };
 
-            var cookieList = await s.Browser.GetCookiesAsync();
-            var cookies = QrCookieBuilder.Build(cookieList);
-
-            QrProfile profile = null;
+            // 成功分支：无论取 cookie / 账号是否抛异常，都保证释放会话
             try
             {
-                profile = await s.Browser.GetProfileAsync();
-            }
-            catch (Exception ex)
-            {
-                Serilog.Log.Warning(ex, "扫码登录抓取账号信息失败，降级为仅返回 cookie");
-            }
+                var cookieList = await s.Browser.GetCookiesAsync();
+                var cookies = QrCookieBuilder.Build(cookieList);
 
-            await RemoveAndDisposeAsync(sessionId);
+                QrProfile profile = null;
+                try
+                {
+                    profile = await s.Browser.GetProfileAsync();
+                }
+                catch (Exception ex)
+                {
+                    Serilog.Log.Warning(ex, "扫码登录抓取账号信息失败，降级为仅返回 cookie");
+                }
 
-            return new QrPollResult
+                return new QrPollResult
+                {
+                    Status = StatusText(QrLoginStatus.Success),
+                    Cookies = cookies,
+                    SecUserId = profile?.SecUserId,
+                    UserName = profile?.UserName,
+                    MyUserId = profile?.MyUserId
+                };
+            }
+            finally
             {
-                Status = "success",
-                Cookies = cookies,
-                SecUserId = profile?.SecUserId,
-                UserName = profile?.UserName,
-                MyUserId = profile?.MyUserId
-            };
+                await RemoveAndDisposeAsync(sessionId);
+            }
         }
 
         public Task CancelAsync(string sessionId) => RemoveAndDisposeAsync(sessionId);
@@ -127,6 +139,8 @@ namespace dy.net.service.qrlogin
                     await RemoveAndDisposeAsync(id);
             }
         }
+
+        private static string StatusText(QrLoginStatus status) => status.ToString().ToLowerInvariant();
 
         private async Task CancelAllAsync()
         {
