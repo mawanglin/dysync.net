@@ -143,6 +143,9 @@ namespace dy.net
             // HTTP客户端
             services.AddHttpClients();
 
+            // 扫码登录三件套（子命名空间，AddServicesFromNamespace 扫不到，须显式注册）
+            services.AddQrLogin();
+
             // 数据库
             services.AddSqlsugar(dbPath);
 

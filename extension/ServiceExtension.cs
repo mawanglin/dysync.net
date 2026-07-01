@@ -358,6 +358,18 @@ namespace dy.net.extension
         }
 
         /// <summary>
+        /// 扫码登录相关服务显式注册。
+        /// 状态机须 Singleton（跨 start/poll 持有会话）；浏览器实现不入容器，由工厂 new。
+        /// </summary>
+        public static void AddQrLogin(this IServiceCollection services)
+        {
+            services.AddSingleton<dy.net.service.qrlogin.DouyinQrLoginService>();
+            services.AddTransient<dy.net.service.qrlogin.IQrLoginBrowserFactory,
+                                  dy.net.service.qrlogin.PuppeteerQrLoginBrowserFactory>();
+            services.AddHostedService<dy.net.service.qrlogin.QrLoginSessionReaper>();
+        }
+
+        /// <summary>
         /// 自动注入服务：核心优化-减少LINQ临时对象+优化反射扫描+避免重复ToList
         /// </summary>
         public static IServiceCollection AddServicesFromNamespace(
