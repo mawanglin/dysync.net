@@ -16,6 +16,7 @@ import {
 } from '@ant-design/icons-vue';
 import { useApiStore } from '@/store';
 import { message } from 'ant-design-vue';
+import QrLoginModal from './QrLoginModal.vue';
 
 import { StarOutlined, StarFilled, StarTwoTone } from '@ant-design/icons-vue';
 const columns = ref([]);
@@ -136,6 +137,49 @@ const copyObject = (target: any, source?: any) => {
 };
 
 const form = reactive<DataItem>(newCookie());
+
+// 扫码弹窗状态
+const qrVisible = ref(false);
+// 'new' = 新增回填表单；'reset' = 过期重扫某条记录
+const qrMode = ref<'new' | 'reset'>('new');
+const qrTargetRecord = ref<DataItem | null>(null);
+
+function openQrForNew() {
+  qrMode.value = 'new';
+  qrTargetRecord.value = null;
+  qrVisible.value = true;
+}
+
+function openQrForReset(record: DataItem) {
+  qrMode.value = 'reset';
+  qrTargetRecord.value = record;
+  qrVisible.value = true;
+}
+
+function onQrSuccess(data: { cookies: string; secUserId?: string; userName?: string; myUserId?: string }) {
+  if (qrMode.value === 'new') {
+    // 回填新增表单，路径等其余字段仍由用户填写后保存
+    form.cookies = data.cookies;
+    if (data.secUserId) form.secUserId = data.secUserId;
+    if (data.userName) form.userName = data.userName;
+    showModal.value = true;
+    message.success('已获取 Cookie，请补全存储路径后保存');
+  } else if (qrMode.value === 'reset' && qrTargetRecord.value) {
+    // 过期重扫：用该记录 + 新 cookie 直接更新落库
+    const payload: any = { ...qrTargetRecord.value, cookies: data.cookies };
+    if (data.secUserId) payload.secUserId = data.secUserId;
+    useApiStore()
+      .UpdateConfig(payload)
+      .then((res) => {
+        if (res.code === 0) {
+          message.success('Cookie 已更新，同步任务将重启');
+          GetRecords();
+        } else {
+          message.error('更新失败：' + (res.message || '未知错误'));
+        }
+      });
+  }
+}
 
 function reset() {
   return newCookie(form);
@@ -654,6 +698,8 @@ const switchdownCollect = (e: any) => {
     </div>
   </a-drawer>
 
+  <qr-login-modal v-model:visible="qrVisible" @success="onQrSuccess" />
+
   <a-table v-bind="$attrs" :columns="columns" :dataSource="dataSource" :pagination="false">
     <template #title>
       <div class="flex justify-end pr-4">
@@ -670,6 +716,8 @@ const switchdownCollect = (e: any) => {
           </template>
           新增
         </a-button>
+
+        <a-button type="primary" style="margin-left: 8px;" @click="openQrForNew">扫码登录获取Cookie</a-button>
       </div>
     </template>
     <template #bodyCell="{ column, text, record }">
@@ -698,6 +746,8 @@ const switchdownCollect = (e: any) => {
           </template>
           删除
         </a-button>
+
+        <a-button v-if="record.status !== 1" type="link" size="small" @click="openQrForReset(record)">重新扫码</a-button>
       </template>
       <div v-else class="text-subtext">
         {{ text }}
