@@ -23,3 +23,7 @@ app/.env.*
 
 # stray duplicates
 **/* copy.*
+
+# 工具生成，勿提交
+.codegraph/
+graphify-out/
