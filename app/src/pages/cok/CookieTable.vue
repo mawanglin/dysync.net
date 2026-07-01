@@ -747,7 +747,7 @@ const switchdownCollect = (e: any) => {
           删除
         </a-button>
 
-        <a-button v-if="record.status !== 1" type="link" size="small" @click="openQrForReset(record)">重新扫码</a-button>
+        <a-button type="link" size="small" @click="openQrForReset(record)">重新扫码</a-button>
       </template>
       <div v-else class="text-subtext">
         {{ text }}
