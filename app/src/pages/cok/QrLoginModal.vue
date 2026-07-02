@@ -69,6 +69,7 @@ async function start() {
       qrImage.value = res.data.qrImageBase64;
       statusText.value = 'waiting';
       timer = setInterval(poll, 1500);
+      console.log('[qrlogin] 已启动轮询 sessionId=', sessionId.value, ' timer=', timer);
     } else {
       statusText.value = 'error';
       hint.value = res.message || '启动失败';
@@ -82,9 +83,11 @@ async function start() {
 }
 
 async function poll() {
+  console.log('[qrlogin] poll tick sessionId=', sessionId.value);
   if (!sessionId.value) return;
   try {
     const res = await useApiStore().QrLoginPoll(sessionId.value);
+    console.log('[qrlogin] poll 返回', res);
     if (res.code !== 0 || !res.data) return;
     const st = res.data.status as string;
     statusText.value = st;
@@ -105,8 +108,8 @@ async function poll() {
       stopPoll();
       hint.value = '登录会话异常，请重试';
     }
-  } catch {
-    /* 单次轮询失败忽略，等下次 */
+  } catch (e) {
+    console.warn('[qrlogin] poll 异常', e);
   }
 }
 
