@@ -21,6 +21,7 @@ namespace dy.net.Tests
 
             public Task OpenLoginPageAsync() => Task.CompletedTask;
             public Task<byte[]> ScreenshotQrAsync() => Task.FromResult(new byte[] { 1, 2, 3 });
+            public Task<byte[]> ScreenshotFullAsync() => Task.FromResult(new byte[] { 4, 5, 6 });
             public Task<QrLoginStatus> GetLoginStatusAsync()
                 => ThrowOnStatus ? throw new InvalidOperationException("status fail") : Task.FromResult(Status);
             public Task<IReadOnlyList<BrowserCookie>> GetCookiesAsync() => Task.FromResult((IReadOnlyList<BrowserCookie>)Cookies);

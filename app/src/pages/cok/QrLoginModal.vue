@@ -1,17 +1,21 @@
 <template>
   <a-modal
     :visible="visible"
-    title="扫码登录抖音"
+    title="扫码登录抖音（实时预览）"
     :footer="null"
     :maskClosable="false"
-    width="360px"
+    :width="liveScreen ? 820 : 360"
     @cancel="handleClose"
   >
     <div style="text-align: center; padding: 12px 0;">
       <a-spin v-if="loading" tip="正在启动浏览器..." />
 
       <template v-else>
-        <div v-if="qrImage" style="position: relative; display: inline-block;">
+        <!-- 有实时画面时显示浏览器整页；否则回退到初始二维码截图 -->
+        <div v-if="liveScreen" style="position: relative; display: inline-block; max-width: 100%;">
+          <img :src="liveScreen" alt="浏览器实时画面" style="width: 780px; max-width: 100%; border: 1px solid #eee;" />
+        </div>
+        <div v-else-if="qrImage" style="position: relative; display: inline-block;">
           <img :src="qrImage" alt="登录二维码" style="width: 220px; height: 220px;" />
           <div
             v-if="statusText === 'expired'"
@@ -43,6 +47,7 @@ const emit = defineEmits<{
 
 const loading = ref(false);
 const qrImage = ref('');
+const liveScreen = ref(''); // 浏览器整页实时画面
 const sessionId = ref('');
 const statusText = ref('');
 let timer: ReturnType<typeof setInterval> | null = null;
@@ -60,8 +65,9 @@ async function start() {
   stopPoll();
   loading.value = true;
   qrImage.value = '';
+  liveScreen.value = '';
   statusText.value = '';
-  hint.value = '请用抖音 App 扫描二维码并确认登录';
+  hint.value = '请用抖音 App 扫码；下方为服务器浏览器的实时画面，扫码后留意是否出现验证';
   try {
     const res = await useApiStore().QrLoginStart();
     if (res.code === 0 && res.data?.sessionId) {
@@ -89,6 +95,7 @@ async function poll() {
     const res = await useApiStore().QrLoginPoll(sessionId.value);
     console.log('[qrlogin] status=', res.data?.status, ' cookies=', res.data?.debug);
     if (res.code !== 0 || !res.data) return;
+    if (res.data.screen) liveScreen.value = res.data.screen; // 更新实时画面
     const st = res.data.status as string;
     statusText.value = st;
     if (st === 'success') {

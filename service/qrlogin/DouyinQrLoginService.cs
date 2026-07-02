@@ -104,7 +104,17 @@ namespace dy.net.service.qrlogin
                     dbg = string.Join(",", ck.Select(c => c.Name));
                 }
                 catch { /* 诊断失败忽略 */ }
-                return new QrPollResult { Status = StatusText(status), Debug = dbg };
+
+                // 实时预览：整页截图回带，让用户看到浏览器真实画面（B 方案第一块）
+                string screen = null;
+                try
+                {
+                    var shot = await s.Browser.ScreenshotFullAsync();
+                    screen = "data:image/jpeg;base64," + Convert.ToBase64String(shot);
+                }
+                catch { /* 预览失败忽略 */ }
+
+                return new QrPollResult { Status = StatusText(status), Debug = dbg, Screen = screen };
             }
 
             // 成功分支：无论取 cookie / 账号是否抛异常，都保证释放会话

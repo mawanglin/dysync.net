@@ -17,6 +17,9 @@ namespace dy.net.service.qrlogin
         /// <summary>截取二维码区域，返回 PNG 字节。</summary>
         Task<byte[]> ScreenshotQrAsync();
 
+        /// <summary>整页截图（实时预览用），返回 JPEG 字节。</summary>
+        Task<byte[]> ScreenshotFullAsync();
+
         /// <summary>查询当前登录状态（Waiting / Success 等）。</summary>
         Task<QrLoginStatus> GetLoginStatusAsync();
 

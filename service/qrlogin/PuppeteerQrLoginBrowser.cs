@@ -157,6 +157,17 @@ namespace dy.net.service.qrlogin
             return await _page.ScreenshotDataAsync();
         }
 
+        public async Task<byte[]> ScreenshotFullAsync()
+        {
+            // 整页 JPEG（压缩），供前端实时预览浏览器画面
+            return await _page.ScreenshotDataAsync(new ScreenshotOptions
+            {
+                FullPage = true,
+                Type = ScreenshotType.Jpeg,
+                Quality = 50
+            });
+        }
+
         public async Task<QrLoginStatus> GetLoginStatusAsync()
         {
             var cookies = await _page.GetCookiesAsync(CookieUrls);
