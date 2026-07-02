@@ -19,6 +19,6 @@ COPY . .
 ENV ASPNETCORE_URLS=http://*:10101
 ENV TZ=Asia/Shanghai
 ENV CHROMIUM_PATH=/usr/bin/chromium
-# 用 xvfb-run 提供虚拟屏，扫码登录得以用「有头」Chromium 跑（更易过抖音风控）。
-# xvfb-run 会设置 DISPLAY，工厂据此自动切到有头模式。
-ENTRYPOINT ["xvfb-run", "-a", "--server-args=-screen 0 1400x1000x24", "dotnet", "dy.net.dll"]
+# 后台起 Xvfb 提供虚拟屏 + 导出 DISPLAY，扫码登录得以用「有头」Chromium 跑（更易过抖音风控）。
+# 用 exec 让 dotnet 成为前台进程，stdout 正常回到 docker logs、信号处理也正确。
+ENTRYPOINT ["/bin/sh", "-c", "Xvfb :99 -screen 0 1400x1000x24 -nolisten tcp >/dev/null 2>&1 & export DISPLAY=:99 && exec dotnet dy.net.dll"]
