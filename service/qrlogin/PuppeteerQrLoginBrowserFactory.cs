@@ -25,11 +25,9 @@ namespace dy.net.service.qrlogin
                     "--no-sandbox",
                     "--disable-dev-shm-usage",
                     "--disable-gpu",
-                    "--lang=zh-CN",
-                    // 隐藏自动化特征，降低抖音风控弹滑块验证的概率
-                    "--disable-blink-features=AutomationControlled",
-                    // 给足窗口尺寸，避免登录面板被挤成很小一块
-                    "--window-size=1400,1000"
+                    "--lang=zh-CN"
+                    // 注：--disable-blink-features / --window-size 曾导致该环境 chromium 连接超时，已撤回。
+                    // 反检测改由页面层的 UA + navigator.webdriver 覆盖处理（见 PuppeteerQrLoginBrowser）。
                 }
             };
 
