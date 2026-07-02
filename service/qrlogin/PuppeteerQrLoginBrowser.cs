@@ -70,13 +70,46 @@ namespace dy.net.service.qrlogin
 
         public async Task<byte[]> ScreenshotQrAsync()
         {
-            foreach (var sel in QrSelectors)
+            // 诊断：二维码常在 passport iframe 内，先把各 frame 结构打到日志，便于精确定位选择器
+            foreach (var frame in _page.Frames)
             {
-                var el = await _page.QuerySelectorAsync(sel);
-                if (el != null)
-                    return await el.ScreenshotDataAsync();
+                try
+                {
+                    var info = await frame.EvaluateExpressionAsync<string>(
+                        "JSON.stringify({u:location.href," +
+                        "img:document.querySelectorAll('img').length," +
+                        "canvas:document.querySelectorAll('canvas').length," +
+                        "qr:document.querySelectorAll('[class*=qrcode],[class*=qr-code],img[src*=qrcode]').length})");
+                    Serilog.Log.Information("扫码诊断 frame: {Info}", info);
+                }
+                catch (Exception ex)
+                {
+                    Serilog.Log.Warning("扫码诊断 frame 失败: {Msg}", ex.Message);
+                }
             }
-            // 兜底：整页截图
+
+            // 在所有 frame（含 iframe）里找可见、够大的二维码元素并截图；单个元素失败不中断，继续找
+            foreach (var frame in _page.Frames)
+            {
+                foreach (var sel in QrSelectors)
+                {
+                    try
+                    {
+                        var el = await frame.QuerySelectorAsync(sel);
+                        if (el == null) continue;
+                        var box = await el.BoundingBoxAsync();
+                        if (box == null || box.Width < 60 || box.Height < 60) continue; // 隐藏/太小则跳过
+                        return await el.ScreenshotDataAsync();
+                    }
+                    catch (Exception ex)
+                    {
+                        Serilog.Log.Warning("二维码元素截图失败({Sel}): {Msg}", sel, ex.Message);
+                    }
+                }
+            }
+
+            // 兜底：整页截图，保证有图返回、绝不抛异常
+            Serilog.Log.Warning("未匹配到可见二维码元素，回退整页截图");
             return await _page.ScreenshotDataAsync();
         }
 
