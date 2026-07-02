@@ -18,12 +18,16 @@ namespace dy.net.service.qrlogin
         // ---- 调优面：如抖音改版，改这里 ----
         private const string LoginUrl = "https://www.douyin.com/";
         private const string ProfileUrl = "https://www.douyin.com/user/self";
-        // 二维码优先按元素截图，取不到则整页兜底
+        // 伪装成正常桌面 Chrome 的 UA，降低被判定为爬虫而弹滑块
+        private const string RealUserAgent =
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+        // 二维码优先按元素截图；canvas 放最后，避免误截到滑块验证等其它 canvas，取不到则整页兜底
         private static readonly string[] QrSelectors =
         {
             "img[src*=\"qrcode\"]",
-            "canvas",
-            "div[class*=\"qrcode\"]"
+            "div[class*=\"qrcode\"] img",
+            "div[class*=\"qrcode\"]",
+            "canvas"
         };
         // 登录态判定 cookie 名
         private static readonly string[] SessionCookieNames = { "sessionid", "sessionid_ss", "sid_tt" };
@@ -43,7 +47,15 @@ namespace dy.net.service.qrlogin
         public async Task OpenLoginPageAsync()
         {
             _page = await _browser.NewPageAsync();
-            await _page.SetViewportAsync(new ViewPortOptions { Width = 1280, Height = 900 });
+
+            // 反自动化检测：正常 UA + 抹掉 navigator.webdriver（在每个新文档注入，先于页面脚本执行）
+            await _page.SetUserAgentAsync(RealUserAgent);
+            await _page.EvaluateExpressionOnNewDocumentAsync(
+                "Object.defineProperty(navigator,'webdriver',{get:()=>undefined});");
+
+            // 视口调大 + 2x 高清：二维码渲染得更大更清晰，扫码更容易
+            await _page.SetViewportAsync(new ViewPortOptions { Width = 1280, Height = 900, DeviceScaleFactor = 2 });
+
             await _page.GoToAsync(LoginUrl, new NavigationOptions
             {
                 WaitUntil = new[] { WaitUntilNavigation.Networkidle2 },

@@ -25,7 +25,11 @@ namespace dy.net.service.qrlogin
                     "--no-sandbox",
                     "--disable-dev-shm-usage",
                     "--disable-gpu",
-                    "--lang=zh-CN"
+                    "--lang=zh-CN",
+                    // 隐藏自动化特征，降低抖音风控弹滑块验证的概率
+                    "--disable-blink-features=AutomationControlled",
+                    // 给足窗口尺寸，避免登录面板被挤成很小一块
+                    "--window-size=1400,1000"
                 }
             };
 
