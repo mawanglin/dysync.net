@@ -87,7 +87,7 @@ async function poll() {
   if (!sessionId.value) return;
   try {
     const res = await useApiStore().QrLoginPoll(sessionId.value);
-    console.log('[qrlogin] poll 返回', res);
+    console.log('[qrlogin] status=', res.data?.status, ' cookies=', res.data?.debug);
     if (res.code !== 0 || !res.data) return;
     const st = res.data.status as string;
     statusText.value = st;

@@ -28,6 +28,7 @@ namespace dy.net.service.qrlogin
         public string SecUserId { get; set; }
         public string UserName { get; set; }
         public string MyUserId { get; set; }
+        public string Debug { get; set; } // 诊断用：waiting 时回带无头浏览器当前 cookie 名单
     }
 
     /// <summary>登录成功后抓取到的账号信息。</summary>

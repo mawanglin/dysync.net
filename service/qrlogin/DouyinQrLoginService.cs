@@ -95,7 +95,17 @@ namespace dy.net.service.qrlogin
             }
 
             if (status != QrLoginStatus.Success)
-                return new QrPollResult { Status = StatusText(status) };
+            {
+                // 诊断：把无头浏览器当前 cookie 名单回带前端，判断扫码后登录态是否建立
+                string dbg = null;
+                try
+                {
+                    var ck = await s.Browser.GetCookiesAsync();
+                    dbg = string.Join(",", ck.Select(c => c.Name));
+                }
+                catch { /* 诊断失败忽略 */ }
+                return new QrPollResult { Status = StatusText(status), Debug = dbg };
+            }
 
             // 成功分支：无论取 cookie / 账号是否抛异常，都保证释放会话
             try
