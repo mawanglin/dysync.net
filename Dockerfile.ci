@@ -38,7 +38,7 @@ FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS final
 WORKDIR /app
 EXPOSE 10101
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ffmpeg chromium xvfb \
+    && apt-get install -y --no-install-recommends ffmpeg chromium xvfb xauth \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=publish /app/publish ./
 # 兜底：确保前端静态资源就位（Linux 下 csproj 的 SPA 拷贝 glob 用的是反斜杠，可能不生效）

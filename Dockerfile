@@ -10,7 +10,7 @@ RUN echo "deb http://mirrors.aliyun.com/debian/ bookworm main non-free contrib" 
     echo "deb http://mirrors.aliyun.com/debian/ bookworm-updates main non-free contrib" >> /etc/apt/sources.list && \
     echo "deb http://mirrors.aliyun.com/debian/ bookworm-backports main non-free contrib" >> /etc/apt/sources.list && \
     apt-get update && \
-    apt-get install -y --no-install-recommends ffmpeg chromium xvfb && \
+    apt-get install -y --no-install-recommends ffmpeg chromium xvfb xauth && \
     rm -rf /var/lib/apt/lists/*
 
 RUN ffmpeg -version
