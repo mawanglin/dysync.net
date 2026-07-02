@@ -225,8 +225,12 @@ export const useApiStore = defineStore('coreapi', () => {
     return http.request<any, Response<any>>('/api/qrlogin/start', 'post_json', {}).then(r => r);
   }
   async function QrLoginPoll(sessionId: string) {
+    // 加时间戳打破浏览器对 GET 轮询的缓存，否则会一直返回缓存的 waiting、不再打到后端
     return http
-      .request<any, Response<any>>('/api/qrlogin/poll?sessionId=' + encodeURIComponent(sessionId), 'get')
+      .request<any, Response<any>>(
+        '/api/qrlogin/poll?sessionId=' + encodeURIComponent(sessionId) + '&_t=' + Date.now(),
+        'get'
+      )
       .then(r => r);
   }
   async function QrLoginCancel(sessionId: string) {

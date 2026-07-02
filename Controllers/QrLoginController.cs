@@ -43,6 +43,7 @@ namespace dy.net.Controllers
 
         /// <summary>轮询扫码状态；成功时返回 cookie 与账号信息。</summary>
         [HttpGet("poll")]
+        [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
         public async Task<IActionResult> Poll([FromQuery] string sessionId)
         {
             var r = await _svc.PollAsync(sessionId);
