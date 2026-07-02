@@ -18,6 +18,9 @@ namespace dy.net.service.qrlogin
         // ---- 调优面：如抖音改版，改这里 ----
         private const string LoginUrl = "https://www.douyin.com/";
         private const string ProfileUrl = "https://www.douyin.com/user/self";
+        // 视口尺寸（同时用于二维码「居中判定」的中心点计算）
+        private const int ViewportWidth = 1280;
+        private const int ViewportHeight = 900;
         // 伪装成正常桌面 Chrome 的 UA，降低被判定为爬虫而弹滑块
         private const string RealUserAgent =
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
@@ -54,7 +57,7 @@ namespace dy.net.service.qrlogin
                 "Object.defineProperty(navigator,'webdriver',{get:()=>undefined});");
 
             // 视口调大 + 2x 高清：二维码渲染得更大更清晰，扫码更容易
-            await _page.SetViewportAsync(new ViewPortOptions { Width = 1280, Height = 900, DeviceScaleFactor = 2 });
+            await _page.SetViewportAsync(new ViewPortOptions { Width = ViewportWidth, Height = ViewportHeight, DeviceScaleFactor = 2 });
 
             await _page.GoToAsync(LoginUrl, new NavigationOptions
             {
@@ -88,7 +91,46 @@ namespace dy.net.service.qrlogin
                 }
             }
 
-            // 在所有 frame（含 iframe）里找可见、够大的二维码元素并截图；单个元素失败不中断，继续找
+            // 主策略：登录弹窗居中，二维码是其中一个「近正方形、尺寸适中」的 img/canvas。
+            // 遍历所有 frame，选最靠近视口中心的那个（背景视频缩略图偏离中心会被排除），
+            // 不依赖抖音具体类名，最抗改版。
+            IElementHandle best = null;
+            double bestDist = double.MaxValue;
+            const double cx = ViewportWidth / 2.0, cy = ViewportHeight / 2.0;
+
+            foreach (var frame in _page.Frames)
+            {
+                foreach (var tag in new[] { "img", "canvas" })
+                {
+                    IElementHandle[] els;
+                    try { els = await frame.QuerySelectorAllAsync(tag); }
+                    catch { continue; }
+
+                    foreach (var el in els)
+                    {
+                        try
+                        {
+                            var box = await el.BoundingBoxAsync();
+                            if (box == null) continue;
+                            double w = (double)box.Width, h = (double)box.Height;
+                            if (w < 120 || w > 420 || h < 120 || h > 420) continue; // 尺寸适中
+                            var ratio = w / h;
+                            if (ratio < 0.8 || ratio > 1.25) continue;              // 近正方形
+                            var dist = Math.Pow((double)box.X + w / 2 - cx, 2) + Math.Pow((double)box.Y + h / 2 - cy, 2);
+                            if (dist < bestDist) { bestDist = dist; best = el; }
+                        }
+                        catch { /* 单个元素测量失败跳过 */ }
+                    }
+                }
+            }
+
+            if (best != null)
+            {
+                try { return await best.ScreenshotDataAsync(); }
+                catch (Exception ex) { Serilog.Log.Warning("居中二维码元素截图失败: {Msg}", ex.Message); }
+            }
+
+            // 次选：按选择器在所有 frame 找可见、够大的元素
             foreach (var frame in _page.Frames)
             {
                 foreach (var sel in QrSelectors)
@@ -98,7 +140,7 @@ namespace dy.net.service.qrlogin
                         var el = await frame.QuerySelectorAsync(sel);
                         if (el == null) continue;
                         var box = await el.BoundingBoxAsync();
-                        if (box == null || box.Width < 60 || box.Height < 60) continue; // 隐藏/太小则跳过
+                        if (box == null || box.Width < 60 || box.Height < 60) continue;
                         return await el.ScreenshotDataAsync();
                     }
                     catch (Exception ex)
@@ -109,7 +151,7 @@ namespace dy.net.service.qrlogin
             }
 
             // 兜底：整页截图，保证有图返回、绝不抛异常
-            Serilog.Log.Warning("未匹配到可见二维码元素，回退整页截图");
+            Serilog.Log.Warning("未匹配到二维码元素，回退整页截图");
             return await _page.ScreenshotDataAsync();
         }
 
