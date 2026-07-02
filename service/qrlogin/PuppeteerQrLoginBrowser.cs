@@ -34,6 +34,8 @@ namespace dy.net.service.qrlogin
         };
         // 登录态判定 cookie 名
         private static readonly string[] SessionCookieNames = { "sessionid", "sessionid_ss", "sid_tt" };
+        // 读取 cookie 的范围：登录态可能设在主站或 passport 子域，两者都取
+        private static readonly string[] CookieUrls = { "https://www.douyin.com", "https://sso.douyin.com" };
         // sec_user_id 从 /user/self 跳转后的 URL 里解析
         private static readonly Regex SecUserIdRegex = new(@"/user/([^/?#]+)", RegexOptions.Compiled);
         private const string NicknameSelector = "span[class*=\"nickname\"], h1";
@@ -157,16 +159,19 @@ namespace dy.net.service.qrlogin
 
         public async Task<QrLoginStatus> GetLoginStatusAsync()
         {
-            var cookies = await _page.GetCookiesAsync();
+            var cookies = await _page.GetCookiesAsync(CookieUrls);
             var loggedIn = cookies.Any(c =>
                 SessionCookieNames.Contains(c.Name, StringComparer.OrdinalIgnoreCase)
                 && !string.IsNullOrWhiteSpace(c.Value));
+            // 诊断：每次轮询打印 URL + 是否登录 + 所有 cookie 名，判断扫码后登录态是否真的建立
+            Serilog.Log.Information("扫码轮询: 已登录={LoggedIn} url={Url} cookies=[{Names}]",
+                loggedIn, _page.Url, string.Join(",", cookies.Select(c => c.Name)));
             return loggedIn ? QrLoginStatus.Success : QrLoginStatus.Waiting;
         }
 
         public async Task<IReadOnlyList<BrowserCookie>> GetCookiesAsync()
         {
-            var cookies = await _page.GetCookiesAsync();
+            var cookies = await _page.GetCookiesAsync(CookieUrls);
             return cookies
                 .Select(c => new BrowserCookie(c.Name, c.Value, c.Domain ?? string.Empty))
                 .ToList();
