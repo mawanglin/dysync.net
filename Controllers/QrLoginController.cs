@@ -31,6 +31,7 @@ namespace dy.net.Controllers
             try
             {
                 var r = await _svc.StartAsync();
+                Log.Information("扫码start: 生成 sessionId={Sid}", r.SessionId);
                 return ApiResult.Success(r);
             }
             catch (System.Exception ex)
@@ -45,6 +46,7 @@ namespace dy.net.Controllers
         public async Task<IActionResult> Poll([FromQuery] string sessionId)
         {
             var r = await _svc.PollAsync(sessionId);
+            Log.Information("扫码poll: 收到 sessionId={Sid} 返回 status={Status}", sessionId, r.Status);
             return ApiResult.Success(r);
         }
 
